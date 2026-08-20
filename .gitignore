@@ -1,0 +1,19 @@
+# File konfigurasi lokal
+.env
+
+# Upload pengguna - jangan masuk repository
+/uploads/
+
+# File sementara
+*.log
+*.tmp
+
+# Database lokal
+*.sql
+
+# File OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
