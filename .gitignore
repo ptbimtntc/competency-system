@@ -2,7 +2,7 @@
 .env
 
 # Upload pengguna - jangan masuk repository
-uploads/
+# uploads/
 
 
 # File sementara
