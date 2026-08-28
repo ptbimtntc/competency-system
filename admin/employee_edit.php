@@ -52,6 +52,8 @@ $error = "";
 |--------------------------------------------------------------------------
 */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_validate();
+    require_writer();
     $nik =
         trim($_POST['nik'] ?? '');
     $name =
@@ -371,6 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             method="POST"
             enctype="multipart/form-data"
         >
+            <?php echo csrf_input(); ?>
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">
@@ -494,13 +497,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endif; ?>
             </div>
             <hr class="my-4">
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 align-items-center">
+                <?php if (admin_can_write()): ?>
                 <button
                     type="submit"
                     class="btn btn-primary"
                 >
                     Update Employee
                 </button>
+                <?php else: ?>
+                <span class="text-muted">Akun read-only &mdash; perubahan tidak bisa disimpan.</span>
+                <?php endif; ?>
                 <a
                     href="employees.php"
                     class="btn btn-outline-secondary"

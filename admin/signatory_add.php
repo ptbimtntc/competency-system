@@ -1,9 +1,12 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_writer();
 $error = "";
 $prefillName = trim($_GET['name'] ?? '');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_validate();
+    require_writer();
     $name = trim($_POST['name'] ?? '');
     $title = trim($_POST['title'] ?? '');
     /*
@@ -125,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
     <div class="form-card">
         <form method="POST" enctype="multipart/form-data">
+            <?php echo csrf_input(); ?>
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">

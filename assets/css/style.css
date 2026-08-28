@@ -4,18 +4,57 @@ body {
     color: #17233c;
 }
 
+/* =====================================================
+   STICKY STACK
+=====================================================
+| Header, identitas employee, dan judul section/tab dibungkus jadi SATU
+| unit sticky supaya ketiganya ikut freeze BERSAMAAN. Sebelumnya tiap
+| bagian dibuat sticky sendiri-sendiri dengan "top" bertingkat, tapi
+| karena ada elemen non-sticky + margin di antaranya, tiap bagian nempel
+| di titik scroll yang berbeda -- header sudah freeze duluan sementara
+| identitas employee & judul baru menyusul, sehingga sempat muncul celah
+| di bawah header. Dengan satu pembungkus, tidak ada lagi celah/geser.
+*/
+.sticky-stack {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #fff;
+}
+
+/* Netralkan sticky per-bagian yang lama supaya tidak dobel-pin di dalam
+   pembungkus (termasuk inline "top" yang di-set assets/js/app.js). */
+.sticky-stack>.sticky-layer {
+    position: static;
+    top: auto;
+}
+
+.verification-card .sticky-stack {
+    border-radius: 16px 16px 0 0;
+}
+
+.detail-card .sticky-stack {
+    border-radius: 12px 12px 0 0;
+}
+
 /* MAIN CARD */
 .verification-card {
     max-width: 430px;
     margin: 20px auto;
     background: white;
     border-radius: 16px;
-    overflow: hidden;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 
 /* HEADER */
+/*
+| overflow:hidden pada .verification-card sengaja tidak dipakai lagi --
+| itu akan mematahkan position:sticky pada elemen turunannya (overflow
+| selain visible pada ancestor manapun membuat browser menganggap ancestor
+| itu sebagai scroll container-nya, bukan viewport). Border-radius atas
+| dipindah ke header sendiri supaya sudutnya tetap membulat.
+*/
 .verification-header {
     min-height: 190px;
     background:
@@ -24,7 +63,10 @@ body {
     color: white;
     padding: 22px 20px;
     text-align: center;
-    position: relative;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-radius: 16px 16px 0 0;
 }
 
 .logo {
@@ -54,12 +96,22 @@ body {
 }
 
 /* EMPLOYEE */
+/*
+| Sticky juga, nempel tepat di bawah header (top: 125px = tinggi header
+| 190px dikurangi overlap -65px dari margin-top di bawah), supaya identitas
+| employee (foto/nama/status) tetap kelihatan saat scroll daftar kompetensi.
+| z-index lebih tinggi dari header supaya foto yang overlap ke header tetap
+| tampil di depan, bukan ketutup.
+*/
 .employee-profile {
     text-align: center;
     margin-top: -65px;
-    position: relative;
+    position: sticky;
+    top: 125px;
+    z-index: 15;
     padding: 0 20px 20px;
     background: white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .employee-photo {
@@ -134,6 +186,8 @@ body {
 
 
 /* SECTION */
+/* Sticky, nempel di bawah .employee-profile (top diperhalus oleh
+   assets/js/app.js; 400px di sini cuma fallback perkiraan) */
 .section-title {
     text-align: center;
     color: #174ca6;
@@ -141,6 +195,10 @@ body {
     font-weight: bold;
     padding: 15px;
     border-bottom: 3px solid #2c63c7;
+    position: sticky;
+    top: 400px;
+    z-index: 12;
+    background: white;
 }
 
 /* COMPETENCY */
@@ -165,6 +223,19 @@ body {
 .competency-item:hover {
     background: #f8fbff;
     transform: translateY(-1px);
+}
+
+/* QUIZ */
+.quiz-question-card {
+    padding: 14px;
+    border: 1px solid #e2e6eb;
+    border-radius: 10px;
+    background: #f8fbff;
+}
+
+.quiz-question-text {
+    font-size: 15px;
+    line-height: 1.5;
 }
 
 /* ICON */
@@ -234,12 +305,13 @@ body {
     margin: 20px auto;
     background: white;
     border-radius: 12px;
-    overflow: hidden;
     box-shadow:
         0 4px 20px rgba(0, 0, 0, 0.07);
 }
 
 /* HEADER */
+/* overflow:hidden dilepas dari .detail-card supaya position:sticky di
+   bawah ini bisa jalan (lihat catatan yang sama di .verification-header) */
 .detail-header {
     background: #063875;
     height: 58px;
@@ -247,6 +319,10 @@ body {
     align-items: center;
     padding: 0 20px;
     color: white;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    border-radius: 12px 12px 0 0;
 }
 
 .detail-header .logo {
@@ -266,6 +342,8 @@ body {
 }
 
 /* PROFILE */
+/* Sticky, nempel tepat di bawah header (top: 58px = tinggi .detail-header)
+   supaya identitas employee tetap kelihatan saat scroll konten di bawahnya */
 .detail-profile {
     margin: 5px 14px 10px;
     padding: 15px;
@@ -274,6 +352,11 @@ body {
     display: flex;
     align-items: center;
     gap: 18px;
+    position: sticky;
+    top: 58px;
+    z-index: 15;
+    background: white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .detail-photo {
@@ -317,10 +400,16 @@ body {
 }
 
 /* TABS */
+/* Sticky, nempel di bawah .detail-profile (top diperhalus oleh
+   assets/js/app.js; 216px di sini cuma fallback perkiraan) */
 .detail-tabs {
     display: flex;
     margin: 0 14px;
     border-bottom: 1px solid #d9dfe7;
+    position: sticky;
+    top: 216px;
+    z-index: 12;
+    background: white;
 }
 
 .detail-tabs .tab {
@@ -506,6 +595,14 @@ body {
         margin: 0;
         border-radius: 0;
         min-height: 100vh;
+    }
+
+    .detail-card .sticky-stack {
+        border-radius: 0;
+    }
+
+    .detail-header {
+        border-radius: 0;
     }
 
     .detail-profile {
@@ -1002,6 +1099,20 @@ body {
         0 2px 8px rgba(0, 0, 0, .04);
 }
 
+.stat-card-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.stat-card-link:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, .08);
+    color: inherit;
+}
+
 .stat-label {
     color: #68717d;
     font-size: 12px;
@@ -1324,4 +1435,9 @@ body {
 .status-pill-secondary {
     background: #e8eaed;
     color: #5f6b7a;
+}
+
+.status-pill-info {
+    background: #dbeafe;
+    color: #1d4ed8;
 }

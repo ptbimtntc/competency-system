@@ -21,6 +21,8 @@ $success = "";
 |--------------------------------------------------------------------------
 */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_validate();
+    require_writer();
     $base_url = rtrim(trim($_POST['base_url'] ?? ''), '/');
     if (
         $base_url === '' ||
@@ -53,7 +55,7 @@ if ($search !== '') {
     $query = "
         SELECT id, nik, name, department, position
         FROM employees
-        WHERE nik LIKE ? OR name LIKE ? OR department LIKE ?
+        WHERE is_deleted = 0 AND (nik LIKE ? OR name LIKE ? OR department LIKE ?)
         ORDER BY name ASC
     ";
     $stmt = mysqli_prepare($conn, $query);
@@ -64,7 +66,7 @@ if ($search !== '') {
 } else {
     $result = mysqli_query(
         $conn,
-        "SELECT id, nik, name, department, position FROM employees ORDER BY name ASC"
+        "SELECT id, nik, name, department, position FROM employees WHERE is_deleted = 0 ORDER BY name ASC"
     );
 }
 $qrItems = [];
@@ -144,15 +146,18 @@ while ($employee = mysqli_fetch_assoc($result)) {
             Contoh: <code>https://competency.namadomain.com</code>. Jangan pakai <code>localhost</code> jika QR akan discan dari HP orang lain.
         </p>
         <form method="POST" class="row g-2">
+            <?php echo csrf_input(); ?>
             <div class="col-md-9">
                 <input type="text" name="base_url" class="form-control"
                     placeholder="https://competency.namadomain.com"
-                    value="<?php echo htmlspecialchars($baseUrl); ?>">
+                    value="<?php echo htmlspecialchars($baseUrl); ?>" <?php echo admin_can_write() ? '' : 'disabled'; ?>>
             </div>
             <div class="col-md-3">
-                <button type="submit" class="btn btn-primary w-100">
-                    Save Base URL
-                </button>
+                <?php if (admin_can_write()): ?>
+                    <button type="submit" class="btn btn-primary w-100">
+                        Save Base URL
+                    </button>
+                <?php endif; ?>
             </div>
         </form>
     </div>

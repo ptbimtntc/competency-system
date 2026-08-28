@@ -2,6 +2,7 @@
 
 session_start();
 
+require_once "csrf.php";
 require_once "../config/database.php";
 
 
@@ -30,6 +31,8 @@ $error = "";
 */
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    csrf_validate();
 
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -96,6 +99,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             session_regenerate_id(true);
 
+            /*
+            | Token CSRF baru setiap kali privilege berubah (login).
+            */
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
 
             $_SESSION['admin_id'] =
                 $admin['id'];
@@ -105,6 +113,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $_SESSION['admin_name'] =
                 $admin['name'];
+
+            /*
+            | Role diisi ulang oleh auth.php pada request berikutnya
+            | (dari kolom admins.role). Bersihkan nilai lama supaya tidak
+            | terbawa dari sesi pengguna sebelumnya.
+            */
+            unset($_SESSION['admin_role']);
 
 
             header("Location: dashboard.php");
@@ -193,6 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         action=""
     >
 
+        <?php echo csrf_input(); ?>
 
         <div class="mb-3">
 

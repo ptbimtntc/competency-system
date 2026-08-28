@@ -24,6 +24,7 @@ $query = "
         scope,
         validity_note,
         validity_months,
+        passing_score,
         default_trainer,
         default_training_provider,
         default_authorizer_title,
@@ -74,6 +75,8 @@ $error = "";
 |--------------------------------------------------------------------------
 */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_validate();
+    require_writer();
     $name =
         trim($_POST['name'] ?? '');
     $code =
@@ -86,6 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         trim($_POST['validity_note'] ?? '');
     $validity_months =
         ($_POST['validity_months'] ?? '') === '' ? null : (int) $_POST['validity_months'];
+    $passing_score =
+        ($_POST['passing_score'] ?? '') === '' ? null : (int) $_POST['passing_score'];
     $default_trainer =
         trim($_POST['default_trainer'] ?? '');
     $default_training_provider =
@@ -110,6 +115,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ) {
         $error =
             "Masa berlaku (bulan) harus antara 1 dan 120.";
+    } elseif (
+        $passing_score !== null &&
+        ($passing_score < 0 || $passing_score > 100)
+    ) {
+        $error =
+            "Nilai kelulusan minimum harus antara 0 dan 100.";
     } else {
         /*
         |--------------------------------------------------------------------------
@@ -164,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     scope = ?,
                     validity_note = ?,
                     validity_months = ?,
+                    passing_score = ?,
                     default_trainer = ?,
                     default_training_provider = ?,
                     default_authorizer_title = ?,
@@ -179,13 +191,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
             mysqli_stmt_bind_param(
                 $updateStmt,
-                "sssssissssiii",
+                "sssssiissssiii",
                 $name,
                 $code,
                 $description,
                 $scope,
                 $validity_note,
                 $validity_months,
+                $passing_score,
                 $default_trainer,
                 $default_training_provider,
                 $default_authorizer_title,
@@ -269,6 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
         <div class="form-card">
             <form method="POST">
+                <?php echo csrf_input(); ?>
                 <div class="row g-3 mb-3">
                     <div class="col-md-9">
                         <label class="form-label">
@@ -333,6 +347,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ?>">
                         <div class="form-text">
                             Tampil di halaman detail kompetensi karyawan. Bisa diubah bebas per kompetensi.
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">
+                            Nilai Kelulusan Minimum (Passing Score)
+                        </label>
+                        <input type="number" name="passing_score" class="form-control" min="0" max="100"
+                            placeholder="0-100" value="<?php echo htmlspecialchars((string) ($competency['passing_score'] ?? 70)); ?>">
+                        <div class="form-text">
+                            Skor kuis minimum agar status kompetensi karyawan jadi Valid. Di bawah nilai ini,
+                            status otomatis jadi Failed meski training sudah dilaksanakan.
                         </div>
                     </div>
                 </div>
@@ -433,10 +458,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
                 <hr class="my-4">
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">
-                        Update Competency
-                    </button>
+                <div class="d-flex gap-2 align-items-center">
+                    <?php if (admin_can_write()): ?>
+                        <button type="submit" class="btn btn-primary">
+                            Update Competency
+                        </button>
+                    <?php else: ?>
+                        <span class="text-muted">Akun read-only &mdash; perubahan tidak bisa disimpan.</span>
+                    <?php endif; ?>
                     <a href="competencies.php" class="btn btn-outline-secondary">
                         Cancel
                     </a>

@@ -1,60 +1,52 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_once "pagination.php";
 /*
 |--------------------------------------------------------------------------
 | Search
 |--------------------------------------------------------------------------
 */
 $search = trim($_GET['search'] ?? '');
+$whereClause = "";
+$params = [];
+$types = "";
+if ($search !== '') {
+    $whereClause = " WHERE name LIKE ? OR description LIKE ?";
+    $keyword = "%" . $search . "%";
+    $params = [$keyword, $keyword];
+    $types = "ss";
+}
 /*
 |--------------------------------------------------------------------------
-| Ambil data competency
+| Hitung total + pagination
 |--------------------------------------------------------------------------
 */
-if ($search !== '') {
-    $query = "
-        SELECT
-            id,
-            name,
-            code,
-            description
-        FROM competencies
-        WHERE
-            name LIKE ?
-            OR description LIKE ?
-        ORDER BY name ASC
-    ";
-    $stmt = mysqli_prepare(
-        $conn,
-        $query
-    );
-    $keyword = "%" . $search . "%";
-    mysqli_stmt_bind_param(
-        $stmt,
-        "ss",
-        $keyword,
-        $keyword
-    );
-    mysqli_stmt_execute($stmt);
-    $result =
-        mysqli_stmt_get_result($stmt);
-} else {
-    $query = "
-        SELECT
-            id,
-            name,
-            code,
-            description
-        FROM competencies
-        ORDER BY name ASC
-    ";
-    $result =
-        mysqli_query(
-            $conn,
-            $query
-        );
+$countStmt = mysqli_prepare($conn, "SELECT COUNT(*) AS total FROM competencies" . $whereClause);
+if (count($params) > 0) {
+    mysqli_stmt_bind_param($countStmt, $types, ...$params);
 }
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
+/*
+|--------------------------------------------------------------------------
+| Ambil data halaman ini
+|--------------------------------------------------------------------------
+*/
+$query = "SELECT id, name, code, description FROM competencies"
+    . $whereClause . " ORDER BY name ASC LIMIT ? OFFSET ?";
+$dataParams = $params;
+$dataParams[] = $pg['per_page'];
+$dataParams[] = $pg['offset'];
+$stmt = mysqli_prepare($conn, $query);
+mysqli_stmt_bind_param($stmt, $types . "ii", ...$dataParams);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+
+$paginationBaseParams = array_filter(['search' => $search], function ($value) {
+    return $value !== null && $value !== '';
+});
 ?>
 
 <!DOCTYPE html>
@@ -105,9 +97,17 @@ if ($search !== '') {
                 <a href="dashboard.php" class="btn btn-outline-secondary">
                     &larr; Dashboard
                 </a>
-                <a href="competency_add.php" class="btn btn-primary">
-                    + Add Competency
+                <a href="competencies_export.php" class="btn btn-outline-secondary">
+                    Export CSV
                 </a>
+                <?php if (admin_can_write()): ?>
+                    <a href="competencies_import.php" class="btn btn-outline-secondary">
+                        Import CSV
+                    </a>
+                    <a href="competency_add.php" class="btn btn-primary">
+                        + Add Competency
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
         <!-- SEARCH -->
@@ -149,7 +149,7 @@ if ($search !== '') {
                     </thead>
                     <tbody>
                         <?php
-                        $number = 1;
+                        $number = $pg['offset'] + 1;
                         if (
                             mysqli_num_rows($result) > 0
                         ):
@@ -193,15 +193,24 @@ if ($search !== '') {
                                                 class="btn btn-sm btn-outline-success">
                                                 Assign Training
                                             </a>
+                                            <a href="competency_questions.php?competency_id=<?php echo $competency['id']; ?>"
+                                                class="btn btn-sm btn-outline-info">
+                                                Questions
+                                            </a>
                                             <a href="competency_edit.php?id=<?php echo $competency['id']; ?>"
                                                 class="btn btn-sm btn-outline-primary">
-                                                Edit
+                                                <?php echo admin_can_write() ? 'Edit' : 'Detail'; ?>
                                             </a>
-                                            <a href="competency_delete.php?id=<?php echo $competency['id']; ?>"
-                                                class="btn btn-sm btn-outline-danger"
-                                                onclick="return confirm('Apakah Anda yakin ingin menghapus kompetensi ini?');">
-                                                Delete
-                                            </a>
+                                            <?php if (admin_can_write()): ?>
+                                                <form method="POST" action="competency_delete.php" class="d-inline"
+                                                    onsubmit="return confirm('Apakah Anda yakin ingin menghapus kompetensi ini?');">
+                                                    <?php echo csrf_input(); ?>
+                                                    <input type="hidden" name="id" value="<?php echo $competency['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -218,6 +227,16 @@ if ($search !== '') {
                     </tbody>
                 </table>
             </div>
+            <?php if ($totalRows > 0): ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                    <span class="text-muted" style="font-size:13px;">
+                        Menampilkan
+                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                        dari <?php echo $totalRows; ?> kompetensi
+                    </span>
+                    <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </body>

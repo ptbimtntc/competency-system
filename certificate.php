@@ -70,6 +70,7 @@ $query = "
         ON aus.id = ec.authorizer_signatory_id
 
     WHERE ec.id = ?
+        AND e.is_deleted = 0
 ";
 
 
@@ -99,6 +100,49 @@ $data = mysqli_fetch_assoc($result);
 
 if (!$data) {
     die("Data sertifikat tidak ditemukan.");
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Sertifikat belum tersedia (training belum selesai/kuis belum dikerjakan)
+|--------------------------------------------------------------------------
+*/
+if (empty($data['certificate_number']) || in_array($data['status'], ['NOT_TAKEN', 'ASSIGNED', 'FAILED'], true)) {
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sertifikat Belum Tersedia</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="assets/css/style.css">
+    </head>
+
+    <body>
+        <div class="container py-4">
+            <div class="verification-card">
+                <div class="verification-header">
+                    <div class="logo">
+                        <img src="assets/images/Bekaert_logo_neg_RGB.png" alt="Bekaert" class="brand-logo">
+                    </div>
+                </div>
+                <div class="p-4 text-center">
+                    <p class="mb-3">Sertifikat untuk kompetensi ini belum tersedia.</p>
+                    <a href="employee.php?id=<?php echo (int) $data['employee_competency_id']; ?>"
+                        class="btn btn-outline-secondary">
+                        ← Kembali ke Detail Kompetensi
+                    </a>
+                </div>
+            </div>
+        </div>
+    </body>
+
+    </html>
+    <?php
+    exit;
 }
 
 

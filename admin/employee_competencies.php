@@ -49,7 +49,8 @@ $competencyQuery = "
     SELECT
         id,
         name,
-        description
+        description,
+        passing_score
     FROM competencies
     ORDER BY name ASC
 ";
@@ -68,11 +69,13 @@ $assignedQuery = "
         id,
         competency_id,
         training_date,
+        scheduled_training_date,
         trainer,
         certificate_number,
         issue_date,
         expiry_date,
         status,
+        score,
         is_active,
         notes
     FROM employee_competencies
@@ -114,6 +117,8 @@ while (
             $assigned['id'],
         'training_date' =>
             $assigned['training_date'],
+        'scheduled_training_date' =>
+            $assigned['scheduled_training_date'],
         'trainer' =>
             $assigned['trainer'],
         'certificate_number' =>
@@ -124,6 +129,8 @@ while (
             $assigned['expiry_date'],
         'status' =>
             $assigned['status'],
+        'score' =>
+            $assigned['score'],
         'is_active' =>
             (int) $assigned['is_active'],
         'notes' =>
@@ -233,6 +240,7 @@ while (
         </div>
         <div class="employee-table-card">
             <form method="POST" action="employee_competencies_save.php" id="competencyForm">
+                <?php echo csrf_input(); ?>
                 <input type="hidden" name="employee_id" value="<?php echo $employee['id']; ?>">
                 <div class="p-4 border-bottom">
                     <h4 class="mb-1">
@@ -312,9 +320,16 @@ while (
                                 */
                                 if ($assignment) {
                                     $status =
-                                        calculateCompetencyStatus(
+                                        calculateCompetencyStatusWithSchedule(
                                             $assignment['training_date'],
-                                            $assignment['expiry_date']
+                                            $assignment['expiry_date'],
+                                            $assignment['scheduled_training_date']
+                                        );
+                                    $status =
+                                        applyPassingScoreGate(
+                                            $status,
+                                            $assignment['score'] !== null ? (int) $assignment['score'] : null,
+                                            $competency['passing_score'] !== null ? (int) $competency['passing_score'] : null
                                         );
                                 } else {
                                     $status = 'NOT_TAKEN';
@@ -419,6 +434,18 @@ while (
                                             <span class="badge text-bg-danger">
                                                 Expired
                                             </span>
+                                        <?php elseif (
+                                            $status === 'FAILED'
+                                        ): ?>
+                                            <span class="badge text-bg-danger">
+                                                Failed
+                                            </span>
+                                        <?php elseif (
+                                            $status === 'ASSIGNED'
+                                        ): ?>
+                                            <span class="badge text-bg-info">
+                                                Assigned
+                                            </span>
                                         <?php else: ?>
                                             <span class="badge text-bg-secondary">
                                                 Not Taken
@@ -455,9 +482,13 @@ while (
                     </table>
                 </div>
                 <div class="p-4 border-top">
-                    <button type="submit" class="btn btn-primary">
-                        Save Competencies
-                    </button>
+                    <?php if (admin_can_write()): ?>
+                        <button type="submit" class="btn btn-primary">
+                            Save Competencies
+                        </button>
+                    <?php else: ?>
+                        <span class="text-muted">Akun read-only &mdash; perubahan tidak bisa disimpan.</span>
+                    <?php endif; ?>
                 </div>
             </form>
         </div>

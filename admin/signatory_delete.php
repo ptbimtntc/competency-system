@@ -1,7 +1,13 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
-$id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header("Location: signatories.php");
+    exit;
+}
+csrf_validate();
+require_writer();
+$id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
 if ($id <= 0) {
     header("Location: signatories.php");
     exit;

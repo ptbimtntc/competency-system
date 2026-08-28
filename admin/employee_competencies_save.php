@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header("Location: employees.php");
     exit;
 }
+csrf_validate();
+require_writer();
 /*
 |--------------------------------------------------------------------------
 | Ambil employee ID

@@ -1,6 +1,7 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_once "pagination.php";
 /*
 |--------------------------------------------------------------------------
 | Search
@@ -17,9 +18,11 @@ if (!in_array($teamFilter, $allowedTeams, true)) {
 | Ambil data employees
 |--------------------------------------------------------------------------
 */
+$showDeleted = isset($_GET['deleted']) && $_GET['deleted'] === '1';
 $conditions = [];
 $params = [];
 $types = "";
+$conditions[] = $showDeleted ? "is_deleted = 1" : "is_deleted = 0";
 if ($search !== '') {
     $conditions[] = "(nik LIKE ? OR name LIKE ? OR department LIKE ? OR position LIKE ? OR supervisor LIKE ?)";
     $keyword = "%" . $search . "%";
@@ -31,6 +34,26 @@ if ($teamFilter !== '') {
     $params[] = $teamFilter;
     $types .= "s";
 }
+$whereClause = count($conditions) > 0
+    ? " WHERE " . implode(" AND ", $conditions)
+    : "";
+/*
+|--------------------------------------------------------------------------
+| Hitung total + pagination
+|--------------------------------------------------------------------------
+*/
+$countStmt = mysqli_prepare($conn, "SELECT COUNT(*) AS total FROM employees" . $whereClause);
+if (count($params) > 0) {
+    mysqli_stmt_bind_param($countStmt, $types, ...$params);
+}
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
+/*
+|--------------------------------------------------------------------------
+| Ambil data halaman ini
+|--------------------------------------------------------------------------
+*/
 $query = "
     SELECT
         id,
@@ -43,17 +66,23 @@ $query = "
         license_id,
         photo
     FROM employees
-";
-if (count($conditions) > 0) {
-    $query .= " WHERE " . implode(" AND ", $conditions);
-}
-$query .= " ORDER BY name ASC";
+" . $whereClause . " ORDER BY name ASC LIMIT ? OFFSET ?";
+$dataParams = $params;
+$dataTypes = $types . "ii";
+$dataParams[] = $pg['per_page'];
+$dataParams[] = $pg['offset'];
 $stmt = mysqli_prepare($conn, $query);
-if (count($params) > 0) {
-    mysqli_stmt_bind_param($stmt, $types, ...$params);
-}
+mysqli_stmt_bind_param($stmt, $dataTypes, ...$dataParams);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
+
+$paginationBaseParams = array_filter([
+    'search' => $search,
+    'team' => $teamFilter,
+    'deleted' => $showDeleted ? '1' : null,
+], function ($value) {
+    return $value !== null && $value !== '';
+});
 ?>
 
 <!DOCTYPE html>
@@ -107,14 +136,50 @@ $result = mysqli_stmt_get_result($stmt);
                 <a href="qr_codes.php" class="btn btn-outline-primary">
                     QR Codes
                 </a>
-                <a href="employee_add.php" class="btn btn-primary">
-                    + Add Employee
+                <a href="employees_export.php?search=<?php echo urlencode($search); ?>&team=<?php echo urlencode($teamFilter); ?>"
+                    class="btn btn-outline-secondary">
+                    Export CSV
                 </a>
+                <a href="employee_competencies_export.php?search=<?php echo urlencode($search); ?>&team=<?php echo urlencode($teamFilter); ?>"
+                    class="btn btn-outline-secondary">
+                    Export CSV + Competency
+                </a>
+                <?php if (admin_can_write()): ?>
+                    <a href="employees_import.php" class="btn btn-outline-secondary">
+                        Import CSV
+                    </a>
+                    <a href="employee_competencies_import.php" class="btn btn-outline-secondary">
+                        Import Training CSV
+                    </a>
+                <?php endif; ?>
+                <?php if ($showDeleted): ?>
+                    <a href="employees.php" class="btn btn-outline-secondary">
+                        &larr; Karyawan Aktif
+                    </a>
+                <?php else: ?>
+                    <a href="employees.php?deleted=1" class="btn btn-outline-secondary">
+                        Karyawan Terhapus
+                    </a>
+                    <?php if (admin_can_write()): ?>
+                        <a href="employee_add.php" class="btn btn-primary">
+                            + Add Employee
+                        </a>
+                    <?php endif; ?>
+                <?php endif; ?>
             </div>
         </div>
+        <?php if ($showDeleted): ?>
+            <div class="alert alert-warning">
+                Menampilkan <strong>karyawan terhapus</strong>. Data &amp; riwayat sertifikatnya masih tersimpan;
+                klik <strong>Restore</strong> untuk memulihkan.
+            </div>
+        <?php endif; ?>
         <!-- SEARCH -->
         <div class="employee-search">
             <form method="GET" class="row g-2">
+                <?php if ($showDeleted): ?>
+                    <input type="hidden" name="deleted" value="1">
+                <?php endif; ?>
                 <div class="col-md-7">
                     <input type="text" name="search" class="form-control"
                         placeholder="Search NIK, name, department, position, supervisor..."
@@ -182,7 +247,7 @@ $result = mysqli_stmt_get_result($stmt);
                     <tbody>
 
                         <?php
-                        $number = 1;
+                        $number = $pg['offset'] + 1;
                         if (mysqli_num_rows($result) > 0):
                             while (
                                 $employee =
@@ -266,23 +331,42 @@ $result = mysqli_stmt_get_result($stmt);
                                     </td>
                                     <td>
                                         <div class="employee-actions">
-                                            <a href="../index.php?nik=<?php echo urlencode($employee['nik']); ?>"
-                                                class="btn btn-sm btn-outline-secondary" target="_blank">
-                                                View
-                                            </a>
-                                            <a href="employee_edit.php?id=<?php echo $employee['id']; ?>"
-                                                class="btn btn-sm btn-outline-primary">
-                                                Edit
-                                            </a>
-                                            <a href="employee_competencies.php?id=<?php echo $employee['id']; ?>"
-                                                class="btn btn-sm btn-outline-success">
-                                                Competencies
-                                            </a>
-                                            <a href="employee_delete.php?id=<?php echo $employee['id']; ?>"
-                                                class="btn btn-sm btn-outline-danger"
-                                                onclick="return confirm('Apakah Anda yakin ingin menghapus karyawan ini?');">
-                                                Delete
-                                            </a>
+                                            <?php if ($showDeleted): ?>
+                                                <?php if (admin_can_write()): ?>
+                                                    <form method="POST" action="employee_restore.php" class="d-inline">
+                                                        <?php echo csrf_input(); ?>
+                                                        <input type="hidden" name="id" value="<?php echo $employee['id']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                                            Restore
+                                                        </button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <span class="text-muted">&mdash;</span>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <a href="../index.php?nik=<?php echo urlencode($employee['nik']); ?>"
+                                                    class="btn btn-sm btn-outline-secondary" target="_blank">
+                                                    View
+                                                </a>
+                                                <a href="employee_edit.php?id=<?php echo $employee['id']; ?>"
+                                                    class="btn btn-sm btn-outline-primary">
+                                                    <?php echo admin_can_write() ? 'Edit' : 'Detail'; ?>
+                                                </a>
+                                                <a href="employee_competencies.php?id=<?php echo $employee['id']; ?>"
+                                                    class="btn btn-sm btn-outline-success">
+                                                    Competencies
+                                                </a>
+                                                <?php if (admin_can_write()): ?>
+                                                    <form method="POST" action="employee_delete.php" class="d-inline"
+                                                        onsubmit="return confirm('Apakah Anda yakin ingin menghapus karyawan ini?');">
+                                                        <?php echo csrf_input(); ?>
+                                                        <input type="hidden" name="id" value="<?php echo $employee['id']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                            Delete
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -299,6 +383,16 @@ $result = mysqli_stmt_get_result($stmt);
                     </tbody>
                 </table>
             </div>
+            <?php if ($totalRows > 0): ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                    <span class="text-muted" style="font-size:13px;">
+                        Menampilkan
+                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                        dari <?php echo $totalRows; ?> karyawan
+                    </span>
+                    <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </body>

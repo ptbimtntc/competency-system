@@ -13,7 +13,12 @@ if ($id <= 0) {
 | Ambil competency
 |--------------------------------------------------------------------------
 */
-$query = "SELECT id, name, description FROM competencies WHERE id = ? LIMIT 1";
+$query = "
+    SELECT id, name, description, default_trainer, default_training_provider
+    FROM competencies
+    WHERE id = ?
+    LIMIT 1
+";
 $stmt = mysqli_prepare($conn, $query);
 mysqli_stmt_bind_param($stmt, "i", $id);
 mysqli_stmt_execute($stmt);
@@ -33,7 +38,7 @@ $allowedTeams = ['A', 'B', 'C', 'D', 'NS'];
 if (!in_array($teamFilter, $allowedTeams, true)) {
     $teamFilter = '';
 }
-$conditions = [];
+$conditions = ["is_deleted = 0"];
 $params = [];
 $types = "";
 if ($search !== '') {
@@ -168,6 +173,7 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
         <!-- ASSIGN FORM -->
         <div class="employee-table-card">
             <form method="POST" action="competency_assign_save.php" id="assignForm">
+                <?php echo csrf_input(); ?>
                 <input type="hidden" name="competency_id" value="<?php echo $id; ?>">
                 <?php if ($search !== ''): ?>
                     <input type="hidden" name="redirect_search" value="<?php echo htmlspecialchars($search); ?>">
@@ -175,6 +181,59 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                 <?php if ($teamFilter !== ''): ?>
                     <input type="hidden" name="redirect_team" value="<?php echo htmlspecialchars($teamFilter); ?>">
                 <?php endif; ?>
+                <div class="p-4 border-bottom">
+                    <h4 class="mb-1">
+                        Isi Data Training Massal (Opsional)
+                    </h4>
+                    <p class="text-muted mb-3">
+                        Assign di sini hanya untuk MENJADWALKAN training, bukan mencatat training yang sudah
+                        selesai. Isi <strong>Scheduled Training Date</strong> untuk menerapkan jadwal ke SEMUA
+                        karyawan yang dicentang &mdash; status kompetensi mereka otomatis jadi <strong>Assigned</strong>,
+                        dan kuis baru bisa dikerjakan tepat pada tanggal tersebut setelah kehadiran dikonfirmasi
+                        (lewat halaman detail kompetensi employee). Training Date, Score, dan Expiry Date terisi
+                        otomatis nanti saat karyawan submit kuis.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                Scheduled Training Date
+                            </label>
+                            <input type="date" name="bulk_scheduled_training_date" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                Trainer
+                            </label>
+                            <input type="text" name="bulk_trainer" class="form-control" placeholder="Nama trainer"
+                                value="<?php echo htmlspecialchars($competency['default_trainer'] ?? ''); ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                Training Provider
+                            </label>
+                            <input type="text" name="bulk_training_provider" class="form-control"
+                                placeholder="Nama provider"
+                                value="<?php echo htmlspecialchars($competency['default_training_provider'] ?? ''); ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">
+                                Notes
+                            </label>
+                            <input type="text" name="bulk_notes" class="form-control"
+                                placeholder="Catatan tambahan (opsional)">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="bulk_overwrite" value="1"
+                                    id="bulkOverwrite">
+                                <label class="form-check-label" for="bulkOverwrite">
+                                    Terapkan juga ke karyawan yang sudah pernah di-assign sebelumnya
+                                    (hanya field di atas yang diisi yang akan menimpa data lama)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
                     <div>
                         <h4 class="mb-1">
@@ -274,9 +333,13 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                     </table>
                 </div>
                 <div class="p-4 border-top">
-                    <button type="submit" class="btn btn-primary">
-                        Save Assignment
-                    </button>
+                    <?php if (admin_can_write()): ?>
+                        <button type="submit" class="btn btn-primary">
+                            Save Assignment
+                        </button>
+                    <?php else: ?>
+                        <span class="text-muted">Akun read-only &mdash; perubahan tidak bisa disimpan.</span>
+                    <?php endif; ?>
                 </div>
             </form>
         </div>

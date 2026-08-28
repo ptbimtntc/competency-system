@@ -110,9 +110,11 @@ if ($search !== '') {
                 <a href="dashboard.php" class="btn btn-outline-secondary">
                     &larr; Dashboard
                 </a>
-                <a href="signatory_add.php" class="btn btn-primary">
-                    + Add Signatory
-                </a>
+                <?php if (admin_can_write()): ?>
+                    <a href="signatory_add.php" class="btn btn-primary">
+                        + Add Signatory
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
         <!-- MISSING SIGNATURES -->
@@ -192,13 +194,18 @@ if ($search !== '') {
                                         <div class="employee-actions">
                                             <a href="signatory_edit.php?id=<?php echo $signatory['id']; ?>"
                                                 class="btn btn-sm btn-outline-primary">
-                                                Edit
+                                                <?php echo admin_can_write() ? 'Edit' : 'Detail'; ?>
                                             </a>
-                                            <a href="signatory_delete.php?id=<?php echo $signatory['id']; ?>"
-                                                class="btn btn-sm btn-outline-danger"
-                                                onclick="return confirm('Apakah Anda yakin ingin menghapus signatory ini?');">
-                                                Delete
-                                            </a>
+                                            <?php if (admin_can_write()): ?>
+                                                <form method="POST" action="signatory_delete.php" class="d-inline"
+                                                    onsubmit="return confirm('Apakah Anda yakin ingin menghapus signatory ini?');">
+                                                    <?php echo csrf_input(); ?>
+                                                    <input type="hidden" name="id" value="<?php echo $signatory['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>

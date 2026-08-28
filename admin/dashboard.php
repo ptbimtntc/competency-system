@@ -10,6 +10,7 @@ require_once "../config/database.php";
 $queryEmployee = "
     SELECT COUNT(*) AS total
     FROM employees
+    WHERE is_deleted = 0
 ";
 $resultEmployee =
     mysqli_query(
@@ -37,8 +38,9 @@ $totalCompetency =
 /* Total Valid */
 $queryValid = "
     SELECT COUNT(*) AS total
-    FROM employee_competencies
-    WHERE status = 'VALID'
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    WHERE ec.status = 'VALID' AND e.is_deleted = 0
 ";
 $resultValid =
     mysqli_query(
@@ -52,8 +54,9 @@ $totalValid =
 /* Total Expired */
 $queryExpired = "
     SELECT COUNT(*) AS total
-    FROM employee_competencies
-    WHERE status = 'EXPIRED'
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    WHERE ec.status = 'EXPIRED' AND e.is_deleted = 0
 ";
 $resultExpired =
     mysqli_query(
@@ -63,6 +66,38 @@ $resultExpired =
 $totalExpired =
     mysqli_fetch_assoc(
         $resultExpired
+    )['total'];
+/* Total Assigned */
+$queryAssigned = "
+    SELECT COUNT(*) AS total
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    WHERE ec.status = 'ASSIGNED' AND e.is_deleted = 0
+";
+$resultAssigned =
+    mysqli_query(
+        $conn,
+        $queryAssigned
+    );
+$totalAssigned =
+    mysqli_fetch_assoc(
+        $resultAssigned
+    )['total'];
+/* Total Failed */
+$queryFailed = "
+    SELECT COUNT(*) AS total
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    WHERE ec.status = 'FAILED' AND e.is_deleted = 0
+";
+$resultFailed =
+    mysqli_query(
+        $conn,
+        $queryFailed
+    );
+$totalFailed =
+    mysqli_fetch_assoc(
+        $resultFailed
     )['total'];
 ?>
 <!DOCTYPE html>
@@ -100,6 +135,9 @@ $totalExpired =
                 $_SESSION['admin_name']
             );
             ?>
+            <span class="badge text-bg-light">
+                <?php echo htmlspecialchars(role_label(current_admin_role())); ?>
+            </span>
         </span>
         <a href="logout.php">
             Logout
@@ -119,7 +157,7 @@ $totalExpired =
     </div>
 <div class="row g-3">
     <div class="col-md-3">
-        <div class="stat-card">
+        <a href="employees.php" class="stat-card stat-card-link">
             <div class="stat-label">
                 Employees
             </div>
@@ -128,10 +166,10 @@ $totalExpired =
                 echo $totalEmployee;
                 ?>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-md-3">
-        <div class="stat-card">
+        <a href="competencies.php" class="stat-card stat-card-link">
             <div class="stat-label">
                 Competencies
             </div>
@@ -140,10 +178,10 @@ $totalExpired =
                 echo $totalCompetency;
                 ?>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-md-3">
-        <div class="stat-card">
+        <a href="competency_status.php?status=VALID" class="stat-card stat-card-link">
             <div class="stat-label">
                 Valid
             </div>
@@ -152,10 +190,10 @@ $totalExpired =
                 echo $totalValid;
                 ?>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-md-3">
-        <div class="stat-card">
+        <a href="competency_status.php?status=EXPIRED" class="stat-card stat-card-link">
             <div class="stat-label">
                 Expired
             </div>
@@ -164,7 +202,31 @@ $totalExpired =
                 echo $totalExpired;
                 ?>
             </div>
-        </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="competency_status.php?status=ASSIGNED" class="stat-card stat-card-link">
+            <div class="stat-label">
+                Assigned
+            </div>
+            <div class="stat-number">
+                <?php
+                echo $totalAssigned;
+                ?>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="competency_status.php?status=FAILED" class="stat-card stat-card-link">
+            <div class="stat-label">
+                Failed
+            </div>
+            <div class="stat-number">
+                <?php
+                echo $totalFailed;
+                ?>
+            </div>
+        </a>
     </div>
 </div>
 <div class="admin-menu-section">
@@ -210,6 +272,96 @@ $totalExpired =
         </div>
         <div class="col-md-6">
             <a
+                href="attendance.php"
+                class="admin-menu-card"
+            >
+                <div class="admin-menu-icon">
+                    📋
+                </div>
+                <div>
+                    <strong>
+                        Attendance
+                    </strong>
+                    <span>
+                        Konfirmasi kehadiran karyawan pada scheduled training
+                    </span>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6">
+            <a
+                href="recertification.php"
+                class="admin-menu-card"
+            >
+                <div class="admin-menu-icon">
+                    ⏰
+                </div>
+                <div>
+                    <strong>
+                        Recertification Due
+                    </strong>
+                    <span>
+                        Competency yang sudah / akan habis masa berlakunya
+                    </span>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6">
+            <a
+                href="competency_matrix.php"
+                class="admin-menu-card"
+            >
+                <div class="admin-menu-icon">
+                    🗂️
+                </div>
+                <div>
+                    <strong>
+                        Competency Matrix
+                    </strong>
+                    <span>
+                        Grid status competency seluruh karyawan
+                    </span>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6">
+            <a
+                href="competency_gap.php"
+                class="admin-menu-card"
+            >
+                <div class="admin-menu-icon">
+                    🎯
+                </div>
+                <div>
+                    <strong>
+                        Competency Gap
+                    </strong>
+                    <span>
+                        Karyawan vs competency wajib untuk posisinya
+                    </span>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6">
+            <a
+                href="position_requirements.php"
+                class="admin-menu-card"
+            >
+                <div class="admin-menu-icon">
+                    📌
+                </div>
+                <div>
+                    <strong>
+                        Required Competency
+                    </strong>
+                    <span>
+                        Atur competency wajib per posisi
+                    </span>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6">
+            <a
                 href="qr_codes.php"
                 class="admin-menu-card"
             >
@@ -244,6 +396,26 @@ $totalExpired =
                 </div>
             </a>
         </div>
+        <?php if (admin_is_superadmin()): ?>
+            <div class="col-md-6">
+                <a
+                    href="admins.php"
+                    class="admin-menu-card"
+                >
+                    <div class="admin-menu-icon">
+                        🔐
+                    </div>
+                    <div>
+                        <strong>
+                            Admin Accounts
+                        </strong>
+                        <span>
+                            Kelola akun &amp; role admin
+                        </span>
+                    </div>
+                </a>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 </div>

@@ -4,9 +4,10 @@ require_once "includes/competency_helper.php";
 // Ambil data karyawan berdasarkan NIK
 $nik = trim($_GET['nik'] ?? '');
 if ($nik === '') {
-    die("NIK tidak ditemukan.");
+    header("Location: admin/login.php");
+    exit;
 }
-$query = "SELECT * FROM employees WHERE nik = ?";
+$query = "SELECT * FROM employees WHERE nik = ? AND is_deleted = 0";
 $stmt = mysqli_prepare($conn, $query);
 mysqli_stmt_bind_param($stmt, "s", $nik);
 mysqli_stmt_execute($stmt);
@@ -50,7 +51,7 @@ $competencies = mysqli_stmt_get_result($stmtCompetency);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>
-        Employee Competency Verification
+        Employee Certificate Verification
     </title>
     <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -60,8 +61,10 @@ $competencies = mysqli_stmt_get_result($stmtCompetency);
 <body>
     <div class="container py-4">
         <div class="verification-card">
+            <!-- Bagian yang di-freeze: header + identitas employee + judul section -->
+            <div class="sticky-stack">
             <!-- Header -->
-            <div class="verification-header">
+            <div class="verification-header sticky-layer">
                 <div class="logo">
                     <img src="assets/images/Bekaert_logo_neg_RGB.png" alt="Bekaert" class="brand-logo">
                 </div>
@@ -70,7 +73,7 @@ $competencies = mysqli_stmt_get_result($stmtCompetency);
                     Verification
                 </div>
             </div>
-            <div class="employee-profile">
+            <div class="employee-profile sticky-layer">
                 <div class="employee-photo">
                     <?php if (!empty($employee['photo'])): ?>
                         <img src="uploads/employees/<?php echo htmlspecialchars($employee['photo']); ?>" alt="Employee Photo">
@@ -98,9 +101,11 @@ $competencies = mysqli_stmt_get_result($stmtCompetency);
                     STATUS: VALID
                 </div>
             </div>
-            <div class="section-title">
-                KOMPETENSI
+            <div class="section-title sticky-layer">
+                SERTIFIKASI KOMPETENSI
             </div>
+            </div>
+            <!-- /sticky-stack -->
             <div class="competency-list">
                 <?php while ($competency = mysqli_fetch_assoc($competencies)): ?>
                     <a href="employee.php?id=<?php echo $competency['id']; ?>" class="competency-item">
@@ -176,5 +181,7 @@ $competencies = mysqli_stmt_get_result($stmtCompetency);
                 <?php endwhile; ?>
             </div>
         </div>
+    </div>
+    <script src="assets/js/app.js"></script>
 </body>
 </html>

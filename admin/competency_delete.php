@@ -1,8 +1,14 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
-$id = isset($_GET['id'])
-    ? (int) $_GET['id']
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header("Location: competencies.php");
+    exit;
+}
+csrf_validate();
+require_writer();
+$id = isset($_POST['id'])
+    ? (int) $_POST['id']
     : 0;
 if ($id <= 0) {
     header(

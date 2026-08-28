@@ -1,8 +1,11 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_writer();
 $error = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_validate();
+    require_writer();
     $nik = trim($_POST['nik'] ?? '');
     $name = trim($_POST['name'] ?? '');
     $department = trim($_POST['department'] ?? '');
@@ -42,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         |--------------------------------------------------------------------------
         */
         $checkQuery = "
-            SELECT id
+            SELECT id, is_deleted
             FROM employees
             WHERE nik = ?
             LIMIT 1
@@ -63,7 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mysqli_stmt_get_result(
                 $checkStmt
             );
-        if (mysqli_num_rows($checkResult) > 0) {
+        $existingByNik = mysqli_fetch_assoc($checkResult);
+        if ($existingByNik && (int) $existingByNik['is_deleted'] === 1) {
+            $error =
+                "NIK tersebut milik karyawan yang sudah dihapus. "
+                . "Pulihkan lewat menu Karyawan Terhapus, bukan menambah baru.";
+        } elseif ($existingByNik) {
             $error =
                 "NIK tersebut sudah terdaftar.";
         } else {
@@ -285,6 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             method="POST"
             enctype="multipart/form-data"
         >
+            <?php echo csrf_input(); ?>
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">

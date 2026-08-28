@@ -22,6 +22,9 @@ $query = "
         ec.employee_id,
         ec.competency_id,
         ec.training_date,
+        ec.scheduled_training_date,
+        ec.attendance_confirmed,
+        ec.quiz_submitted_at,
         ec.trainer,
         ec.certificate_number,
         ec.issue_date,
@@ -35,16 +38,15 @@ $query = "
         ec.authorizer_signatory_id,
         ec.notes,
 
-        e.id,
         e.nik,
         e.name AS employee_name,
         e.department,
         e.position,
 
-        c.id,
         c.name AS competency_name,
         c.description AS competency_description,
-        c.validity_months
+        c.validity_months,
+        c.passing_score
 
     FROM employee_competencies ec
     INNER JOIN employees e
@@ -77,6 +79,20 @@ if (!$data) {
 }
 /*
 |--------------------------------------------------------------------------
+| Halaman kembali (Back/Cancel)
+|--------------------------------------------------------------------------
+|
+| Hanya menerima nama file .php lokal (opsional dengan query string) supaya
+| tidak bisa dipakai untuk open redirect ke domain lain.
+|
+*/
+$back = trim($_GET['back'] ?? $_POST['back'] ?? '');
+$defaultBack = "employee_competencies.php?id=" . $data['employee_id'];
+if (!preg_match('/^[a-zA-Z0-9_\-]+\.php(\?[a-zA-Z0-9_\-\.=&%]*)?$/', $back)) {
+    $back = $defaultBack;
+}
+/*
+|--------------------------------------------------------------------------
 | Ambil daftar signatories (untuk dropdown tanda tangan)
 |--------------------------------------------------------------------------
 */
@@ -96,6 +112,8 @@ $success = "";
 |--------------------------------------------------------------------------
 */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_validate();
+    require_writer();
     /*
     |--------------------------------------------------------------------------
     | Field tanggal: konversi string kosong menjadi NULL
@@ -111,6 +129,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         trim($_POST['training_date'] ?? '');
     $training_date =
         $training_date === '' ? null : $training_date;
+    $scheduled_training_date =
+        trim($_POST['scheduled_training_date'] ?? '');
+    $scheduled_training_date =
+        $scheduled_training_date === '' ? null : $scheduled_training_date;
+    $attendance_confirmed =
+        isset($_POST['attendance_confirmed']) ? 1 : 0;
     $trainer =
         trim(
             $_POST['trainer'] ?? ''
@@ -167,17 +191,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         trim(
             $_POST['notes'] ?? ''
         );
+    $passing_score =
+        $data['passing_score'] !== null ? (int) $data['passing_score'] : null;
     $status =
-        calculateCompetencyStatus(
+        calculateCompetencyStatusWithSchedule(
             $training_date,
-            $expiry_date
+            $expiry_date,
+            $scheduled_training_date
         );
+    $status =
+        applyPassingScoreGate($status, $score, $passing_score);
     /*
     |--------------------------------------------------------------------------
     | Validasi status
     |--------------------------------------------------------------------------
     */
-    $allowed_status = ['NOT_TAKEN', 'VALID', 'EXPIRING_SOON', 'EXPIRED'];
+    $allowed_status = ['NOT_TAKEN', 'ASSIGNED', 'VALID', 'EXPIRING_SOON', 'EXPIRED', 'FAILED'];
     if (
         !in_array(
             $status,
@@ -220,6 +249,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             UPDATE employee_competencies
             SET
                 training_date = ?,
+                scheduled_training_date = ?,
+                attendance_confirmed = ?,
                 trainer = ?,
                 certificate_number = ?,
                 issue_date = ?,
@@ -241,8 +272,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
         mysqli_stmt_bind_param(
             $updateStmt,
-            "ssssssisssiisi",
+            "ssisssssisssiisi",
             $training_date,
+            $scheduled_training_date,
+            $attendance_confirmed,
             $trainer,
             $certificate_number,
             $issue_date,
@@ -264,13 +297,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ) {
             /*
             |--------------------------------------------------------------------------
+            | Simpan snapshot ke riwayat (hanya kalau training sudah tercatat)
+            |--------------------------------------------------------------------------
+            */
+            if ($training_date !== null) {
+                recordCompetencyHistory(
+                    $conn,
+                    $id,
+                    'manual',
+                    $_SESSION['admin_name'] ?? null
+                );
+            }
+            /*
+            |--------------------------------------------------------------------------
             | Redirect agar POST tidak dikirim ulang ketika refresh
             |--------------------------------------------------------------------------
             */
             header(
                 "Location: employee_competency_edit.php?id="
                 . $id
-                . "&success=1"
+                . "&success=1&back="
+                . urlencode($back)
             );
             exit;
         } else {
@@ -337,10 +384,17 @@ if (
                     Update employee competency information
                 </p>
             </div>
-            <a href="employee_competencies.php?id=<?php echo $data['employee_id']; ?>"
-                class="btn btn-outline-secondary">
-                ← Back
-            </a>
+            <div class="d-flex gap-2">
+                <a href="competency_history.php?employee_competency_id=<?php echo (int) $id; ?>&back=<?php
+                    echo urlencode('employee_competency_edit.php?id=' . $id . '&back=' . urlencode($back));
+                    ?>" class="btn btn-outline-secondary">
+                    Riwayat
+                </a>
+                <a href="<?php echo htmlspecialchars($back); ?>"
+                    class="btn btn-outline-secondary">
+                    ← Back
+                </a>
+            </div>
         </div>
         <?php if ($success !== ''): ?>
             <div class="alert alert-success">
@@ -433,9 +487,62 @@ if (
                     ?>
                 </p>
             </div>
+            <?php if (!empty($data['quiz_submitted_at'])): ?>
+                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                    <div>
+                        Kuis untuk kompetensi ini sudah dikerjakan pada
+                        <strong><?php echo date('d M Y H:i', strtotime($data['quiz_submitted_at'])); ?></strong>.
+                        Jawaban terkunci, tidak bisa dikerjakan ulang oleh karyawan.
+                    </div>
+                    <?php if (admin_can_write()): ?>
+                        <form method="POST" action="employee_competency_quiz_reset.php"
+                            class="flex-shrink-0 ms-3"
+                            onsubmit="return confirm('Reset kuis? Jawaban yang tersimpan akan dihapus dan karyawan bisa mengerjakan ulang setelah dijadwalkan ulang.');">
+                            <?php echo csrf_input(); ?>
+                            <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
+                            <input type="hidden" name="back" value="<?php echo htmlspecialchars($back); ?>">
+                            <button type="submit" class="btn btn-sm btn-outline-warning">
+                                Reset Quiz
+                            </button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
             <hr>
             <form method="POST">
+                <?php echo csrf_input(); ?>
+                <input type="hidden" name="back" value="<?php echo htmlspecialchars($back); ?>">
                 <div class="row g-3">
+                    <!-- SCHEDULED TRAINING DATE -->
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Scheduled Training Date
+                        </label>
+                        <input type="date" name="scheduled_training_date" class="form-control" value="<?php echo htmlspecialchars(
+                            $data['scheduled_training_date'] ?? ''
+                        ); ?>">
+                        <div class="form-text">
+                            Tanggal training direncanakan. Kalau diisi (dan Training Date di bawah masih kosong),
+                            status kompetensi jadi <strong>Assigned</strong> dan tombol kuis akan aktif
+                            tepat di tanggal ini untuk karyawan.
+                        </div>
+                    </div>
+                    <!-- ATTENDANCE CONFIRMED -->
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Attendance
+                        </label>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="attendance_confirmed" id="attendanceConfirmed"
+                                value="1" <?php echo (int) ($data['attendance_confirmed'] ?? 0) === 1 ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="attendanceConfirmed">
+                                Karyawan hadir pada training ini
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Wajib dicentang supaya tombol kuis bisa diklik karyawan.
+                        </div>
+                    </div>
                     <!-- TRAINING DATE -->
                     <div class="col-md-6">
                         <label class="form-label">
@@ -444,6 +551,10 @@ if (
                         <input type="date" name="training_date" id="trainingDateInput" class="form-control" value="<?php echo htmlspecialchars(
                             $data['training_date'] ?? ''
                         ); ?>">
+                        <div class="form-text">
+                            Tanggal training SUDAH SELESAI dilaksanakan (diisi otomatis saat karyawan submit kuis,
+                            atau isi manual untuk entry data lama tanpa kuis).
+                        </div>
                     </div>
                     <!-- TRAINER -->
                     <div class="col-md-6">
@@ -478,6 +589,15 @@ if (
                             placeholder="0-100" value="<?php echo htmlspecialchars(
                                 (string) ($data['score'] ?? '')
                             ); ?>">
+                        <div class="form-text">
+                            <?php if ($data['passing_score'] !== null): ?>
+                                Nilai kelulusan minimum untuk kompetensi ini:
+                                <strong><?php echo (int) $data['passing_score']; ?></strong>.
+                                Di bawah itu status otomatis jadi <strong>Failed</strong>, bukan Valid.
+                            <?php else: ?>
+                                Kompetensi ini belum punya nilai kelulusan minimum, status tidak digate oleh skor.
+                            <?php endif; ?>
+                        </div>
                     </div>
                     <!-- TRAINING PROVIDER -->
                     <div class="col-md-6">
@@ -589,9 +709,16 @@ if (
                             </label>
                             <?php
                             $currentStatus =
-                                calculateCompetencyStatus(
+                                calculateCompetencyStatusWithSchedule(
                                     $data['training_date'],
-                                    $data['expiry_date']
+                                    $data['expiry_date'],
+                                    $data['scheduled_training_date']
+                                );
+                            $currentStatus =
+                                applyPassingScoreGate(
+                                    $currentStatus,
+                                    $data['score'] !== null ? (int) $data['score'] : null,
+                                    $data['passing_score'] !== null ? (int) $data['passing_score'] : null
                                 );
                             ?>
                             <?php if ($currentStatus === 'VALID'): ?>
@@ -614,6 +741,22 @@ if (
                                 <div>
                                     <span class="badge text-bg-danger fs-6">
                                         Expired
+                                    </span>
+                                </div>
+                            <?php elseif (
+                                $currentStatus === 'FAILED'
+                            ): ?>
+                                <div>
+                                    <span class="badge text-bg-danger fs-6">
+                                        Failed
+                                    </span>
+                                </div>
+                            <?php elseif (
+                                $currentStatus === 'ASSIGNED'
+                            ): ?>
+                                <div>
+                                    <span class="badge text-bg-info fs-6">
+                                        Assigned
                                     </span>
                                 </div>
                             <?php else: ?>
@@ -664,11 +807,15 @@ if (
                     </div>
                 </div>
                 <hr class="my-4">
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">
-                        Save Changes
-                    </button>
-                    <a href="employee_competencies.php?id=<?php echo $data['employee_id']; ?>"
+                <div class="d-flex gap-2 align-items-center">
+                    <?php if (admin_can_write()): ?>
+                        <button type="submit" class="btn btn-primary">
+                            Save Changes
+                        </button>
+                    <?php else: ?>
+                        <span class="text-muted">Akun read-only &mdash; perubahan tidak bisa disimpan.</span>
+                    <?php endif; ?>
+                    <a href="<?php echo htmlspecialchars($back); ?>"
                         class="btn btn-outline-secondary">
                         Cancel
                     </a>

@@ -39,6 +39,9 @@ $query = "
         ec.certificate_number,
         ec.training_provider,
         ec.status,
+        ec.scheduled_training_date,
+        ec.attendance_confirmed,
+        ec.quiz_submitted_at,
 
         e.id AS employee_id,
         e.nik,
@@ -64,6 +67,7 @@ $query = "
         ON ec.competency_id = c.id
 
     WHERE ec.id = ?
+        AND e.is_deleted = 0
 ";
 
 
@@ -91,6 +95,10 @@ $data = mysqli_fetch_assoc($result);
 if (!$data) {
     die("Data kompetensi tidak ditemukan.");
 }
+$quizEligibility = getQuizEligibility($conn, $data);
+$quizSuccess = isset($_GET['quiz_success']) && $_GET['quiz_success'] === '1';
+$quizSuccessScore = isset($_GET['score']) ? (int) $_GET['score'] : null;
+$quizPassed = isset($_GET['passed']) ? $_GET['passed'] === '1' : null;
 ?>
 
 <!DOCTYPE html>
@@ -113,7 +121,9 @@ if (!$data) {
 <body>
     <div class="container py-3">
         <div class="detail-card">
-            <div class="detail-header">
+            <!-- Bagian yang di-freeze: header + back link + identitas employee + tab -->
+            <div class="sticky-stack">
+            <div class="detail-header sticky-layer">
                 <div class="logo">
                     <img src="assets/images/Bekaert_logo_neg_RGB.png" alt="Bekaert" class="brand-logo">
                 </div>
@@ -123,7 +133,7 @@ if (!$data) {
                     ← Kembali ke Ringkasan
                 </a>
             </div>
-            <div class="detail-profile">
+            <div class="detail-profile sticky-layer">
                 <div class="detail-photo">
                     <?php if (!empty($data['photo'])): ?>
                         <img src="uploads/employees/<?php echo htmlspecialchars($data['photo']); ?>" alt="Employee Photo">
@@ -181,14 +191,73 @@ if (!$data) {
                     </div>
                 </div>
             </div>
-            <div class="detail-tabs">
+            <div class="detail-tabs sticky-layer">
                 <div class="tab active">
                     DETAIL
                 </div>
-                <a class="tab" href="certificate.php?id=<?php echo $data['employee_competency_id']; ?>">
-                    SERTIFIKAT
-                </a>
+                <?php if (!empty($data['certificate_number'])): ?>
+                    <a class="tab" href="certificate.php?id=<?php echo $data['employee_competency_id']; ?>">
+                        SERTIFIKAT
+                    </a>
+                <?php else: ?>
+                    <span class="tab disabled" style="opacity:.5;cursor:not-allowed;">
+                        SERTIFIKAT
+                    </span>
+                <?php endif; ?>
             </div>
+            </div>
+            <!-- /sticky-stack -->
+            <?php if ($quizSuccess && $quizPassed !== false): ?>
+                <div class="alert alert-success mx-3 mt-3">
+                    Kuis berhasil diselesaikan!
+                    <?php if ($quizSuccessScore !== null): ?>
+                        Skor Anda: <strong><?php echo $quizSuccessScore; ?>/100</strong>.
+                    <?php endif; ?>
+                </div>
+            <?php elseif ($quizSuccess && $quizPassed === false): ?>
+                <div class="alert alert-danger mx-3 mt-3">
+                    Skor Anda belum memenuhi nilai kelulusan minimum.
+                    <?php if ($quizSuccessScore !== null): ?>
+                        Skor Anda: <strong><?php echo $quizSuccessScore; ?>/100</strong>.
+                    <?php endif; ?>
+                    Silakan hubungi admin untuk penjadwalan ulang training/kuis.
+                </div>
+            <?php endif; ?>
+            <?php if ($data['status'] === 'ASSIGNED'): ?>
+                <div class="p-3">
+                    <div class="quiz-question-card">
+                        <div class="mb-2">
+                            <strong>Jadwal Training:</strong>
+                            <?php
+                            echo empty($data['scheduled_training_date'])
+                                ? '-'
+                                : date('d M Y', strtotime($data['scheduled_training_date']));
+                            ?>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Kehadiran:</strong>
+                            <?php echo (int) $data['attendance_confirmed'] === 1 ? 'Dikonfirmasi' : 'Belum dikonfirmasi'; ?>
+                        </div>
+                        <?php if ($quizEligibility['eligible']): ?>
+                            <a href="quiz.php?id=<?php echo $data['employee_competency_id']; ?>"
+                                class="btn btn-primary w-100">
+                                Kerjakan Pertanyaan
+                            </a>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-secondary w-100" disabled>
+                                Kerjakan Pertanyaan
+                            </button>
+                            <div class="form-text mt-2">
+                                <?php
+                                echo htmlspecialchars(
+                                    quizEligibilityMessage($quizEligibility['reason'], $data['scheduled_training_date'])
+                                );
+                                ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
             <div class="information-section">
                 <h3>
                     INFORMASI UMUM
@@ -486,6 +555,8 @@ if (!$data) {
         </div>
 
     </div>
+
+    <script src="assets/js/app.js"></script>
 
 </body>
 
