@@ -135,7 +135,9 @@ while (
         'is_active' =>
             (int) $assigned['is_active'],
         'notes' =>
-            $assigned['notes']
+            $assigned['notes'],
+        'quiz_submitted_at' =>
+            $assigned['quiz_submitted_at']
     ];
 }
 ?>
