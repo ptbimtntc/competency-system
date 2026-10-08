@@ -358,7 +358,7 @@ $expiryDate = empty($data['expiry_date'])
 
     <div class="signature">
 
-        <?php if (!empty($data['trainer_signature'])): ?>
+        <?php if (!empty($data['trainer_signature']) && is_file(__DIR__ . "/uploads/signatures/" . $data['trainer_signature'])): ?>
             <img class="signature-image"
                 src="uploads/signatures/<?php echo htmlspecialchars($data['trainer_signature']); ?>"
                 alt="Trainer signature">
@@ -391,7 +391,7 @@ $expiryDate = empty($data['expiry_date'])
 
     <div class="signature">
 
-        <?php if (!empty($data['authorizer_signature'])): ?>
+        <?php if (!empty($data['authorizer_signature']) && is_file(__DIR__ . "/uploads/signatures/" . $data['authorizer_signature'])): ?>
             <img class="signature-image"
                 src="uploads/signatures/<?php echo htmlspecialchars($data['authorizer_signature']); ?>"
                 alt="Authorizer signature">

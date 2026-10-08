@@ -175,9 +175,11 @@ if ($search !== '') {
                                         <?php echo $number++; ?>
                                     </td>
                                     <td>
-                                        <?php if (!empty($signatory['signature'])): ?>
+                                        <?php if (!empty($signatory['signature']) && is_file(__DIR__ . "/../uploads/signatures/" . $signatory['signature'])): ?>
                                             <img src="../uploads/signatures/<?php echo htmlspecialchars($signatory['signature']); ?>"
                                                 alt="Signature" style="height:36px;max-width:110px;object-fit:contain;">
+                                        <?php elseif (!empty($signatory['signature'])): ?>
+                                            <span class="text-muted" title="File tidak ditemukan di server">-</span>
                                         <?php else: ?>
                                             <span class="text-muted">-</span>
                                         <?php endif; ?>

@@ -259,7 +259,7 @@ $paginationBaseParams = array_filter([
                                         <?php echo $number++; ?>
                                     </td>
                                     <td>
-                                        <?php if (!empty($employee['photo'])): ?>
+                                        <?php if (!empty($employee['photo']) && is_file(__DIR__ . "/../uploads/employees/" . $employee['photo'])): ?>
                                             <img src="../uploads/employees/<?php echo htmlspecialchars($employee['photo']); ?>"
                                                 class="employee-photo-small" alt="Employee photo">
                                         <?php else: ?>

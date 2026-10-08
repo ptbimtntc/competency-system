@@ -483,7 +483,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         Kosongkan jika tidak ingin mengganti foto.
                     </div>
                 </div>
-                <?php if (!empty($employee['photo'])): ?>
+                <?php if (!empty($employee['photo']) && is_file(__DIR__ . "/../uploads/employees/" . $employee['photo'])): ?>
                     <div class="col-12">
                         <label class="form-label d-block">
                             Current Photo
@@ -493,6 +493,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             class="employee-photo-preview"
                             alt="Current employee photo"
                         >
+                    </div>
+                <?php elseif (!empty($employee['photo'])): ?>
+                    <div class="col-12">
+                        <div class="alert alert-warning mb-0">
+                            File foto sebelumnya ("<?php echo htmlspecialchars($employee['photo']); ?>") tidak
+                            ditemukan di server. Upload ulang foto untuk memperbaikinya.
+                        </div>
                     </div>
                 <?php endif; ?>
             </div>

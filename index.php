@@ -75,7 +75,7 @@ $competencies = mysqli_stmt_get_result($stmtCompetency);
             </div>
             <div class="employee-profile sticky-layer">
                 <div class="employee-photo">
-                    <?php if (!empty($employee['photo'])): ?>
+                    <?php if (!empty($employee['photo']) && is_file(__DIR__ . "/uploads/employees/" . $employee['photo'])): ?>
                         <img src="uploads/employees/<?php echo htmlspecialchars($employee['photo']); ?>" alt="Employee Photo">
                     <?php else: ?>
                         <div class="photo-placeholder">

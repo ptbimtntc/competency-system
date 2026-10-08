@@ -135,7 +135,7 @@ $quizPassed = isset($_GET['passed']) ? $_GET['passed'] === '1' : null;
             </div>
             <div class="detail-profile sticky-layer">
                 <div class="detail-photo">
-                    <?php if (!empty($data['photo'])): ?>
+                    <?php if (!empty($data['photo']) && is_file(__DIR__ . "/uploads/employees/" . $data['photo'])): ?>
                         <img src="uploads/employees/<?php echo htmlspecialchars($data['photo']); ?>" alt="Employee Photo">
                     <?php else: ?>
                         <div class="photo-placeholder">

@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         Kosongkan jika tidak ingin mengganti tanda tangan. Maksimal 1 MB.
                     </div>
                 </div>
-                <?php if (!empty($signatory['signature'])): ?>
+                <?php if (!empty($signatory['signature']) && is_file(__DIR__ . "/../uploads/signatures/" . $signatory['signature'])): ?>
                     <div class="col-12">
                         <label class="form-label d-block">
                             Current Signature
@@ -183,6 +183,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <img src="../uploads/signatures/<?php echo htmlspecialchars($signatory['signature']); ?>"
                             style="height:70px;max-width:220px;object-fit:contain;border:1px solid #dce2e8;border-radius:8px;padding:6px;"
                             alt="Current signature">
+                    </div>
+                <?php elseif (!empty($signatory['signature'])): ?>
+                    <div class="col-12">
+                        <div class="alert alert-warning mb-0">
+                            File tanda tangan sebelumnya ("<?php echo htmlspecialchars($signatory['signature']); ?>")
+                            tidak ditemukan di server. Upload ulang untuk memperbaikinya.
+                        </div>
                     </div>
                 <?php endif; ?>
             </div>
