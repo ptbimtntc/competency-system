@@ -164,9 +164,16 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                     <?php echo htmlspecialchars(competencyStatusLabel($status)); ?>
                 </p>
             </div>
-            <a href="dashboard.php" class="btn btn-outline-secondary">
-                &larr; Back to Dashboard
-            </a>
+            <div class="d-flex gap-2">
+                <?php if ($status === 'ASSIGNED'): ?>
+                    <a href="confirm_attendance_import.php" class="btn btn-outline-secondary">
+                        Import Attendance CSV
+                    </a>
+                <?php endif; ?>
+                <a href="dashboard.php" class="btn btn-outline-secondary">
+                    &larr; Back to Dashboard
+                </a>
+            </div>
         </div>
         <?php if ($success): ?>
             <div class="alert alert-success">
