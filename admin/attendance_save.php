@@ -92,6 +92,7 @@ try {
     | pernah di-assign lalu dinonaktifkan tetap harus di-UPDATE (reaktivasi),
     | bukan di-INSERT ulang -- kalau tidak, akan bentrok dan gagal.
     */
+    $todayDate = date('Y-m-d');
     $existingStmt = mysqli_prepare(
         $conn,
         "SELECT
@@ -101,7 +102,8 @@ try {
             scheduled_training_date,
             expiry_date,
             score,
-            is_active
+            is_active,
+            quiz_submitted_at
         FROM employee_competencies
         WHERE competency_id = ?"
     );
@@ -139,7 +141,18 @@ try {
                     && $existing['scheduled_training_date'] !== $scheduledTrainingDate;
 
                 if ($isNewCycle) {
-                    $effStatus = calculateCompetencyStatusWithSchedule(null, null, $scheduledTrainingDate);
+                    /*
+                    | Siklus training baru -- karyawan hadir hari ini untuk
+                    | sesi baru, jadi training_date langsung diisi tanggal
+                    | hari ini (bukan NULL). Status tetap ASSIGNED sampai
+                    | kuis untuk siklus baru ini disubmit.
+                    */
+                    $effStatus = calculateCompetencyStatusWithSchedule(
+                        $todayDate,
+                        null,
+                        $scheduledTrainingDate,
+                        null
+                    );
                     $updateStmt = mysqli_prepare(
                         $conn,
                         "UPDATE employee_competencies
@@ -147,19 +160,29 @@ try {
                             scheduled_training_date = ?,
                             attendance_confirmed = 1,
                             status = ?,
-                            training_date = NULL,
+                            training_date = ?,
                             expiry_date = NULL,
                             score = NULL,
                             certificate_number = NULL,
                             quiz_submitted_at = NULL
                         WHERE id = ?"
                     );
+                    mysqli_stmt_bind_param($updateStmt, "sssi", $scheduledTrainingDate, $effStatus, $todayDate, $existing['id']);
                 } else {
+                    /*
+                    | Bukan siklus baru. Kalau belum pernah punya training_date
+                    | (belum pernah dikonfirmasi hadir sebelumnya), isi otomatis
+                    | dengan tanggal hari ini. Kalau sudah ada (sudah hadir
+                    | sebelumnya, baik menunggu kuis atau sudah selesai), jangan
+                    | ditimpa.
+                    */
+                    $effTrainingDate = $existing['training_date'] ?: $todayDate;
                     $effScore = $existing['score'] !== null ? (int) $existing['score'] : null;
                     $effStatus = calculateCompetencyStatusWithSchedule(
-                        $existing['training_date'],
+                        $effTrainingDate,
                         $existing['expiry_date'],
-                        $scheduledTrainingDate
+                        $scheduledTrainingDate,
+                        $existing['quiz_submitted_at']
                     );
                     $effStatus = applyPassingScoreGate($effStatus, $effScore, $passingScore);
                     $updateStmt = mysqli_prepare(
@@ -168,11 +191,12 @@ try {
                         SET is_active = 1,
                             scheduled_training_date = ?,
                             attendance_confirmed = 1,
-                            status = ?
+                            status = ?,
+                            training_date = ?
                         WHERE id = ?"
                     );
+                    mysqli_stmt_bind_param($updateStmt, "sssi", $scheduledTrainingDate, $effStatus, $effTrainingDate, $existing['id']);
                 }
-                mysqli_stmt_bind_param($updateStmt, "ssi", $scheduledTrainingDate, $effStatus, $existing['id']);
                 mysqli_stmt_execute($updateStmt);
             } elseif (
                 (int) $existing['is_active'] === 1 &&
@@ -199,7 +223,7 @@ try {
             | Walk-in: hadir tapi belum pernah di-assign ke competency ini.
             | Buat assignment baru langsung dengan kehadiran terkonfirmasi.
             */
-            $insertStatus = calculateCompetencyStatusWithSchedule(null, null, $scheduledTrainingDate);
+            $insertStatus = calculateCompetencyStatusWithSchedule($todayDate, null, $scheduledTrainingDate, null);
             $insertStmt = mysqli_prepare(
                 $conn,
                 "INSERT INTO employee_competencies
@@ -215,13 +239,14 @@ try {
                     trainer_signatory_id,
                     authorizer_signatory_id,
                     scheduled_training_date,
+                    training_date,
                     attendance_confirmed
                 )
-                VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 1)"
+                VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
             );
             mysqli_stmt_bind_param(
                 $insertStmt,
-                "iisssssiis",
+                "iisssssiiss",
                 $employee_id,
                 $competency_id,
                 $insertStatus,
@@ -231,7 +256,8 @@ try {
                 $defaultAuthorizerName,
                 $defaultTrainerSignatoryId,
                 $defaultAuthorizerSignatoryId,
-                $scheduledTrainingDate
+                $scheduledTrainingDate,
+                $todayDate
             );
             mysqli_stmt_execute($insertStmt);
         }

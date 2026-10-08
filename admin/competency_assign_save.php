@@ -126,7 +126,8 @@ try {
             training_provider,
             expiry_date,
             score,
-            notes
+            notes,
+            quiz_submitted_at
         FROM employee_competencies
         WHERE competency_id = ?"
     );
@@ -203,7 +204,7 @@ try {
                     | supaya sertifikat siklus sebelumnya tidak hilang.
                     */
                     recordCompetencyHistory($conn, (int) $existing['id'], 'reschedule');
-                    $effStatus = calculateCompetencyStatusWithSchedule(null, null, $effScheduledTrainingDate);
+                    $effStatus = calculateCompetencyStatusWithSchedule(null, null, $effScheduledTrainingDate, null);
                     $updateDataStmt = mysqli_prepare(
                         $conn,
                         "UPDATE employee_competencies
@@ -226,7 +227,8 @@ try {
                     $effStatus = calculateCompetencyStatusWithSchedule(
                         $existing['training_date'],
                         $existing['expiry_date'],
-                        $effScheduledTrainingDate
+                        $effScheduledTrainingDate,
+                        $existing['quiz_submitted_at']
                     );
                     $effStatus = applyPassingScoreGate($effStatus, $effScore, $passingScore);
                     $updateDataStmt = mysqli_prepare(
@@ -284,7 +286,7 @@ try {
         $insertTrainer = $bulkTrainer !== '' ? $bulkTrainer : $defaultTrainer;
         $insertTrainingProvider = $bulkTrainingProvider !== '' ? $bulkTrainingProvider : $defaultTrainingProvider;
         $insertNotes = $bulkNotes !== '' ? $bulkNotes : null;
-        $insertStatus = calculateCompetencyStatusWithSchedule(null, null, $bulkScheduledTrainingDate);
+        $insertStatus = calculateCompetencyStatusWithSchedule(null, null, $bulkScheduledTrainingDate, null);
 
         $insertStmt = mysqli_prepare(
             $conn,

@@ -54,7 +54,8 @@ $query = "
         ec.issue_date,
         ec.score,
         ec.certificate_number,
-        ec.trainer
+        ec.trainer,
+        ec.quiz_submitted_at
     FROM employees e
     LEFT JOIN employee_competencies ec
         ON ec.employee_id = e.id
@@ -106,7 +107,8 @@ while ($row = mysqli_fetch_assoc($result)) {
         $status = calculateCompetencyStatusWithSchedule(
             $row['training_date'],
             $row['expiry_date'],
-            $row['scheduled_training_date']
+            $row['scheduled_training_date'],
+            $row['quiz_submitted_at']
         );
         $status = applyPassingScoreGate(
             $status,

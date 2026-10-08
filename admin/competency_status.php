@@ -18,6 +18,8 @@ $statusTitles = [
     'FAILED' => 'Failed Competencies',
 ];
 
+$success = isset($_GET['success']) && $_GET['success'] === '1';
+
 /*
 |--------------------------------------------------------------------------
 | Ambil employee competency berdasarkan status
@@ -97,11 +99,25 @@ $result = mysqli_stmt_get_result($stmt);
                 &larr; Back to Dashboard
             </a>
         </div>
+        <?php if ($success): ?>
+            <div class="alert alert-success">
+                Attendance berhasil dikonfirmasi.
+            </div>
+        <?php endif; ?>
         <div class="employee-table-card">
+            <?php if ($status === 'ASSIGNED'): ?>
+                <form method="POST" action="confirm_attendance_bulk.php" id="bulkAttendanceForm">
+                    <?php echo csrf_input(); ?>
+            <?php endif; ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead>
                         <tr>
+                            <?php if ($status === 'ASSIGNED'): ?>
+                                <th width="40">
+                                    <input type="checkbox" class="form-check-input" id="selectAllAssigned">
+                                </th>
+                            <?php endif; ?>
                             <th>
                                 NIK
                             </th>
@@ -132,6 +148,15 @@ $result = mysqli_stmt_get_result($stmt);
                         <?php if (mysqli_num_rows($result) > 0): ?>
                             <?php while ($row = mysqli_fetch_assoc($result)): ?>
                                 <tr>
+                                    <?php if ($status === 'ASSIGNED'): ?>
+                                        <td>
+                                            <?php if ((int) $row['attendance_confirmed'] === 1): ?>
+                                                <input type="checkbox" class="form-check-input" checked disabled title="Sudah dikonfirmasi hadir">
+                                            <?php else: ?>
+                                                <input type="checkbox" class="form-check-input attendance-select" name="confirm_ids[]" value="<?php echo (int) $row['id']; ?>">
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endif; ?>
                                     <td>
                                         <?php echo htmlspecialchars($row['nik']); ?>
                                     </td>
@@ -201,7 +226,7 @@ $result = mysqli_stmt_get_result($stmt);
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="<?php echo $status === 'ASSIGNED' ? 9 : 8; ?>" class="text-center py-5">
                                     Tidak ada data competency dengan status ini.
                                 </td>
                             </tr>
@@ -209,8 +234,31 @@ $result = mysqli_stmt_get_result($stmt);
                     </tbody>
                 </table>
             </div>
+            <?php if ($status === 'ASSIGNED'): ?>
+                <?php if (mysqli_num_rows($result) > 0 && admin_can_write()): ?>
+                    <div class="p-4 border-top">
+                        <button type="submit" class="btn btn-primary">
+                            Konfirmasi Hadir Terpilih
+                        </button>
+                    </div>
+                <?php endif; ?>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
+    <?php if ($status === 'ASSIGNED'): ?>
+        <script>
+            (function () {
+                var selectAll = document.getElementById('selectAllAssigned');
+                var checkboxes = document.querySelectorAll('.attendance-select');
+                selectAll?.addEventListener('change', function () {
+                    checkboxes.forEach(function (cb) {
+                        cb.checked = selectAll.checked;
+                    });
+                });
+            })();
+        </script>
+    <?php endif; ?>
 </body>
 
 </html>

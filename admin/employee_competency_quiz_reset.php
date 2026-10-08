@@ -51,7 +51,8 @@ if (!empty($data['quiz_submitted_at'])) {
     $newStatus = calculateCompetencyStatusWithSchedule(
         null,
         null,
-        $data['scheduled_training_date']
+        $data['scheduled_training_date'],
+        null
     );
     mysqli_begin_transaction($conn);
     try {

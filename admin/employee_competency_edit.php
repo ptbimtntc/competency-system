@@ -135,6 +135,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $scheduled_training_date === '' ? null : $scheduled_training_date;
     $attendance_confirmed =
         isset($_POST['attendance_confirmed']) ? 1 : 0;
+    /*
+    |--------------------------------------------------------------------------
+    | Konfirmasi kehadiran -> training_date otomatis
+    |--------------------------------------------------------------------------
+    |
+    | Begitu attendance dicentang dan training_date masih kosong, isi
+    | otomatis dengan tanggal hari ini (tanggal admin mengonfirmasi hadir).
+    | scheduled_training_date disamakan juga -- begitu training benar-benar
+    | terjadi hari ini, "dijadwalkan" dan "aktual"-nya sama. Status tetap
+    | ASSIGNED sampai kuis disubmit -- lihat calculateCompetencyStatusWithSchedule().
+    |
+    */
+    if ($attendance_confirmed === 1 && $training_date === null) {
+        $training_date = date('Y-m-d');
+        $scheduled_training_date = $training_date;
+    }
     $trainer =
         trim(
             $_POST['trainer'] ?? ''
@@ -148,13 +164,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     | Generate nomor sertifikat otomatis
     |--------------------------------------------------------------------------
     |
-    | Hanya digenerate sekali saat masih kosong dan training_date sudah
-    | diisi. Format: PTBI/tahun/bulan romawi/kode competency/nomor urut.
-    | Kalau sudah ada (baik hasil generate sebelumnya atau diisi manual),
-    | tidak akan ditimpa.
+    | Hanya digenerate sekali hasil kuis sudah final (quiz_submitted_at
+    | terisi), atau untuk entry data lama yang memang tidak melalui alur
+    | quiz sama sekali (tidak punya scheduled_training_date). Training_date
+    | sekarang bisa terisi lebih dulu saat attendance dikonfirmasi -- sebelum
+    | kuis dikerjakan -- jadi training_date saja bukan sinyal yang valid lagi
+    | untuk menandakan training benar-benar selesai.
     |
     */
-    if ($certificate_number === '' && $training_date !== null) {
+    $quizAlreadyGraded = !empty($data['quiz_submitted_at'])
+        || empty($data['scheduled_training_date']);
+    if ($certificate_number === '' && $training_date !== null && $quizAlreadyGraded) {
         $certificate_number = generateCertificateNumber(
             $conn,
             (int) $data['competency_id'],
@@ -208,7 +228,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         calculateCompetencyStatusWithSchedule(
             $training_date,
             $expiry_date,
-            $scheduled_training_date
+            $scheduled_training_date,
+            $data['quiz_submitted_at']
         );
     $status =
         applyPassingScoreGate($status, $score, $passing_score);
@@ -723,7 +744,8 @@ if (
                                 calculateCompetencyStatusWithSchedule(
                                     $data['training_date'],
                                     $data['expiry_date'],
-                                    $data['scheduled_training_date']
+                                    $data['scheduled_training_date'],
+                                    $data['quiz_submitted_at']
                                 );
                             $currentStatus =
                                 applyPassingScoreGate(

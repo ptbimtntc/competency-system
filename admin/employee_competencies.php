@@ -77,7 +77,8 @@ $assignedQuery = "
         status,
         score,
         is_active,
-        notes
+        notes,
+        quiz_submitted_at
     FROM employee_competencies
     WHERE employee_id = ?
 ";
@@ -323,7 +324,8 @@ while (
                                         calculateCompetencyStatusWithSchedule(
                                             $assignment['training_date'],
                                             $assignment['expiry_date'],
-                                            $assignment['scheduled_training_date']
+                                            $assignment['scheduled_training_date'],
+                                            $assignment['quiz_submitted_at']
                                         );
                                     $status =
                                         applyPassingScoreGate(

@@ -118,6 +118,7 @@ $assignmentResult = mysqli_query(
         ec.scheduled_training_date,
         ec.expiry_date,
         ec.score,
+        ec.quiz_submitted_at,
         c.passing_score
     FROM employee_competencies ec
     INNER JOIN competencies c ON c.id = ec.competency_id
@@ -127,7 +128,8 @@ while ($row = mysqli_fetch_assoc($assignmentResult)) {
     $status = calculateCompetencyStatusWithSchedule(
         $row['training_date'],
         $row['expiry_date'],
-        $row['scheduled_training_date']
+        $row['scheduled_training_date'],
+        $row['quiz_submitted_at']
     );
     $status = applyPassingScoreGate(
         $status,

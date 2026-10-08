@@ -117,17 +117,25 @@ function competencyStatusIcon(string $status): string
 | Status dengan mempertimbangkan jadwal training (scheduled_training_date)
 |--------------------------------------------------------------------------
 |
-| Superset dari calculateCompetencyStatus(): kalau training_date masih
-| kosong tapi sudah ada scheduled_training_date, kompetensi dianggap
-| ASSIGNED (terjadwal, menunggu kuis) alih-alih NOT_TAKEN.
+| Superset dari calculateCompetencyStatus(): kalau sudah ada
+| scheduled_training_date tapi kuis belum pernah disubmit (quiz_submitted_at
+| masih kosong), kompetensi dianggap ASSIGNED -- baik training_date-nya
+| masih kosong (belum hadir) ATAUPUN sudah diisi otomatis saat attendance
+| dikonfirmasi (sudah hadir, menunggu hasil kuis). Begitu kuis disubmit,
+| status baru dihitung dari training_date/expiry_date seperti biasa.
+|
+| Kalau scheduled_training_date kosong (entry manual data lama tanpa alur
+| quiz), aturan ini tidak berlaku -- status langsung dihitung dari
+| training_date/expiry_date.
 |
 */
 function calculateCompetencyStatusWithSchedule(
     ?string $training_date,
     ?string $expiry_date,
-    ?string $scheduled_training_date
+    ?string $scheduled_training_date,
+    ?string $quiz_submitted_at
 ): string {
-    if (empty($training_date) && !empty($scheduled_training_date)) {
+    if (!empty($scheduled_training_date) && empty($quiz_submitted_at)) {
         return 'ASSIGNED';
     }
     return calculateCompetencyStatus($training_date, $expiry_date);

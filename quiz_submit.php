@@ -21,6 +21,7 @@ try {
             ec.id,
             ec.competency_id,
             ec.certificate_number,
+            ec.training_date,
             ec.scheduled_training_date,
             ec.attendance_confirmed,
             ec.quiz_submitted_at,
@@ -139,7 +140,13 @@ try {
     | Hitung training_date, expiry_date, certificate_number, status
     |--------------------------------------------------------------------------
     */
-    $trainingDate = $ec['scheduled_training_date'];
+    /*
+    | training_date normalnya sudah diisi otomatis saat attendance
+    | dikonfirmasi (tanggal admin mencentang hadir). Fallback ke
+    | scheduled_training_date untuk jaga-jaga kalau karena alasan apa pun
+    | kolomnya masih kosong saat quiz ini disubmit.
+    */
+    $trainingDate = $ec['training_date'] ?: $ec['scheduled_training_date'];
     $validityMonths = !empty($ec['validity_months']) ? (int) $ec['validity_months'] : null;
     $expiryDate = null;
     if ($validityMonths !== null) {
