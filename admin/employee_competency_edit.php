@@ -161,6 +161,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $training_date
         );
     }
+    /*
+    |--------------------------------------------------------------------------
+    | certificate_number punya UNIQUE constraint di DB. Kolomnya nullable,
+    | jadi simpan sebagai NULL (bukan '') saat belum ada nomor -- MySQL
+    | menganggap beberapa NULL sebagai unik, tapi '' akan dianggap sama
+    | dan bentrok begitu lebih dari satu employee_competency belum punya
+    | sertifikat.
+    |
+    */
+    $certificate_number =
+        $certificate_number === '' ? null : $certificate_number;
     $issue_date =
         trim($_POST['issue_date'] ?? '');
     $issue_date =
