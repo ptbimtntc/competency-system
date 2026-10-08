@@ -22,9 +22,56 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
 
 /*
 |--------------------------------------------------------------------------
-| Ambil employee competency berdasarkan status
+| Filter
 |--------------------------------------------------------------------------
 */
+$search = trim($_GET['search'] ?? '');
+$competencyFilter = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
+$teamFilter = trim($_GET['team'] ?? '');
+$allowedTeams = ['A', 'B', 'C', 'D', 'NS'];
+if (!in_array($teamFilter, $allowedTeams, true)) {
+    $teamFilter = '';
+}
+$attendanceFilter = trim($_GET['attendance'] ?? '');
+if ($status !== 'ASSIGNED' || !in_array($attendanceFilter, ['confirmed', 'not_confirmed'], true)) {
+    $attendanceFilter = '';
+}
+
+$competencyListResult = mysqli_query($conn, "SELECT id, name FROM competencies ORDER BY name ASC");
+$competencyList = [];
+while ($row = mysqli_fetch_assoc($competencyListResult)) {
+    $competencyList[] = $row;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Ambil employee competency berdasarkan status + filter
+|--------------------------------------------------------------------------
+*/
+$conditions = ["ec.status = ?", "ec.is_active = 1", "e.is_deleted = 0"];
+$params = [$status];
+$types = "s";
+if ($search !== '') {
+    $conditions[] = "(e.nik LIKE ? OR e.name LIKE ? OR e.department LIKE ?)";
+    $keyword = "%" . $search . "%";
+    array_push($params, $keyword, $keyword, $keyword);
+    $types .= "sss";
+}
+if ($competencyFilter > 0) {
+    $conditions[] = "c.id = ?";
+    $params[] = $competencyFilter;
+    $types .= "i";
+}
+if ($teamFilter !== '') {
+    $conditions[] = "e.team = ?";
+    $params[] = $teamFilter;
+    $types .= "s";
+}
+if ($attendanceFilter === 'confirmed') {
+    $conditions[] = "ec.attendance_confirmed = 1";
+} elseif ($attendanceFilter === 'not_confirmed') {
+    $conditions[] = "ec.attendance_confirmed = 0";
+}
 $query = "
     SELECT
         ec.id,
@@ -39,19 +86,41 @@ $query = "
         e.name AS employee_name,
         e.department,
         e.position,
+        e.team,
         c.name AS competency_name
     FROM employee_competencies ec
     INNER JOIN employees e ON ec.employee_id = e.id
     INNER JOIN competencies c ON ec.competency_id = c.id
-    WHERE ec.status = ?
-        AND ec.is_active = 1
-        AND e.is_deleted = 0
+    WHERE " . implode(' AND ', $conditions) . "
     ORDER BY ec.expiry_date ASC, e.name ASC
 ";
 $stmt = mysqli_prepare($conn, $query);
-mysqli_stmt_bind_param($stmt, "s", $status);
+mysqli_stmt_bind_param($stmt, $types, ...$params);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
+
+/*
+|--------------------------------------------------------------------------
+| Helper buat query string filter yang aktif (dipakai di link reset dll)
+|--------------------------------------------------------------------------
+*/
+function buildStatusFilterQuery(string $status, array $overrides = []): string
+{
+    $base = [
+        'status' => $status,
+        'search' => $overrides['search'] ?? ($_GET['search'] ?? ''),
+        'competency_id' => $overrides['competency_id'] ?? ($_GET['competency_id'] ?? ''),
+        'team' => $overrides['team'] ?? ($_GET['team'] ?? ''),
+        'attendance' => $overrides['attendance'] ?? ($_GET['attendance'] ?? ''),
+    ];
+    $base = array_filter($base, fn($v) => $v !== '');
+    /*
+    | RFC3986 (%20 untuk spasi) bukan default '+' -- supaya hasilnya lolos
+    | validasi regex parameter "back" di employee_competency_edit.php, yang
+    | tidak mengizinkan karakter '+'.
+    */
+    return http_build_query($base, '', '&', PHP_QUERY_RFC3986);
+}
 ?>
 
 <!DOCTYPE html>
@@ -104,6 +173,67 @@ $result = mysqli_stmt_get_result($stmt);
                 Attendance berhasil dikonfirmasi.
             </div>
         <?php endif; ?>
+        <div class="form-card mb-4">
+            <form method="GET" class="row g-3 align-items-end">
+                <input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>">
+                <div class="col-md-3">
+                    <label class="form-label">Search</label>
+                    <input type="text" name="search" class="form-control"
+                        placeholder="NIK, nama, department..." value="<?php echo htmlspecialchars($search); ?>">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Competency</label>
+                    <select name="competency_id" class="form-control">
+                        <option value="">All Competencies</option>
+                        <?php foreach ($competencyList as $c): ?>
+                            <option value="<?php echo $c['id']; ?>" <?php
+                                echo $competencyFilter === (int) $c['id'] ? 'selected' : '';
+                                ?>>
+                                <?php echo htmlspecialchars($c['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Team</label>
+                    <select name="team" class="form-control">
+                        <option value="">All Teams</option>
+                        <?php foreach ($allowedTeams as $teamOption): ?>
+                            <option value="<?php echo $teamOption; ?>" <?php
+                                echo $teamFilter === $teamOption ? 'selected' : '';
+                                ?>>
+                                Team <?php echo $teamOption; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php if ($status === 'ASSIGNED'): ?>
+                    <div class="col-md-2">
+                        <label class="form-label">Attendance</label>
+                        <select name="attendance" class="form-control">
+                            <option value="">All</option>
+                            <option value="confirmed" <?php echo $attendanceFilter === 'confirmed' ? 'selected' : ''; ?>>
+                                Confirmed
+                            </option>
+                            <option value="not_confirmed" <?php echo $attendanceFilter === 'not_confirmed' ? 'selected' : ''; ?>>
+                                Not confirmed
+                            </option>
+                        </select>
+                    </div>
+                <?php endif; ?>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        Filter
+                    </button>
+                    <?php if ($search !== '' || $competencyFilter > 0 || $teamFilter !== '' || $attendanceFilter !== ''): ?>
+                        <a href="competency_status.php?status=<?php echo htmlspecialchars($status); ?>"
+                            class="btn btn-outline-secondary w-100">
+                            Reset
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
         <div class="employee-table-card">
             <?php if ($status === 'ASSIGNED'): ?>
                 <form method="POST" action="confirm_attendance_bulk.php" id="bulkAttendanceForm">
@@ -217,7 +347,7 @@ $result = mysqli_stmt_get_result($stmt);
                                     </td>
                                     <td>
                                         <a href="employee_competency_edit.php?id=<?php echo $row['id']; ?>&back=<?php
-                                            echo urlencode('competency_status.php?status=' . $status);
+                                            echo urlencode('competency_status.php?' . buildStatusFilterQuery($status));
                                             ?>" class="btn btn-sm btn-outline-primary">
                                             Detail
                                         </a>
