@@ -26,6 +26,9 @@ if ($competency_id <= 0) {
 }
 $redirectSearch = trim($_POST['redirect_search'] ?? '');
 $redirectTeam = trim($_POST['redirect_team'] ?? '');
+$redirectDepartment = trim($_POST['redirect_department'] ?? '');
+$redirectSupervisor = trim($_POST['redirect_supervisor'] ?? '');
+$redirectAssignment = trim($_POST['redirect_assignment'] ?? '');
 /*
 |--------------------------------------------------------------------------
 | Ambil default info training milik competency ini
@@ -330,6 +333,15 @@ try {
     }
     if ($redirectTeam !== '') {
         $redirect .= "&team=" . urlencode($redirectTeam);
+    }
+    if ($redirectDepartment !== '') {
+        $redirect .= "&department=" . urlencode($redirectDepartment);
+    }
+    if ($redirectSupervisor !== '') {
+        $redirect .= "&supervisor=" . urlencode($redirectSupervisor);
+    }
+    if ($redirectAssignment !== '') {
+        $redirect .= "&assignment=" . urlencode($redirectAssignment);
     }
     header("Location: " . $redirect);
     exit;

@@ -29,7 +29,7 @@ if (!$competency) {
 }
 /*
 |--------------------------------------------------------------------------
-| Search & filter Team
+| Search & filter
 |--------------------------------------------------------------------------
 */
 $search = trim($_GET['search'] ?? '');
@@ -38,6 +38,41 @@ $allowedTeams = ['A', 'B', 'C', 'D', 'NS'];
 if (!in_array($teamFilter, $allowedTeams, true)) {
     $teamFilter = '';
 }
+$departmentFilter = trim($_GET['department'] ?? '');
+$supervisorFilter = trim($_GET['supervisor'] ?? '');
+$assignmentFilter = trim($_GET['assignment'] ?? '');
+if (!in_array($assignmentFilter, ['assigned', 'not_assigned'], true)) {
+    $assignmentFilter = '';
+}
+
+$departmentListResult = mysqli_query(
+    $conn,
+    "SELECT DISTINCT department FROM employees
+    WHERE is_deleted = 0 AND department IS NOT NULL AND department != ''
+    ORDER BY department ASC"
+);
+$departmentList = [];
+while ($row = mysqli_fetch_assoc($departmentListResult)) {
+    $departmentList[] = $row['department'];
+}
+if ($departmentFilter !== '' && !in_array($departmentFilter, $departmentList, true)) {
+    $departmentFilter = '';
+}
+
+$supervisorListResult = mysqli_query(
+    $conn,
+    "SELECT DISTINCT supervisor FROM employees
+    WHERE is_deleted = 0 AND supervisor IS NOT NULL AND supervisor != ''
+    ORDER BY supervisor ASC"
+);
+$supervisorList = [];
+while ($row = mysqli_fetch_assoc($supervisorListResult)) {
+    $supervisorList[] = $row['supervisor'];
+}
+if ($supervisorFilter !== '' && !in_array($supervisorFilter, $supervisorList, true)) {
+    $supervisorFilter = '';
+}
+
 $conditions = ["is_deleted = 0"];
 $params = [];
 $types = "";
@@ -51,6 +86,25 @@ if ($teamFilter !== '') {
     $conditions[] = "team = ?";
     $params[] = $teamFilter;
     $types .= "s";
+}
+if ($departmentFilter !== '') {
+    $conditions[] = "department = ?";
+    $params[] = $departmentFilter;
+    $types .= "s";
+}
+if ($supervisorFilter !== '') {
+    $conditions[] = "supervisor = ?";
+    $params[] = $supervisorFilter;
+    $types .= "s";
+}
+if ($assignmentFilter === 'assigned') {
+    $conditions[] = "id IN (SELECT employee_id FROM employee_competencies WHERE competency_id = ? AND is_active = 1)";
+    $params[] = $id;
+    $types .= "i";
+} elseif ($assignmentFilter === 'not_assigned') {
+    $conditions[] = "id NOT IN (SELECT employee_id FROM employee_competencies WHERE competency_id = ? AND is_active = 1)";
+    $params[] = $id;
+    $types .= "i";
 }
 $employeeQuery = "SELECT id, nik, name, department, position, supervisor, team FROM employees";
 if (count($conditions) > 0) {
@@ -142,14 +196,14 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
         </div>
         <!-- SEARCH -->
         <div class="employee-search">
-            <form method="GET" class="row g-2">
+            <form method="GET" class="row g-2 align-items-end">
                 <input type="hidden" name="id" value="<?php echo $id; ?>">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <input type="text" name="search" class="form-control"
                         placeholder="Search NIK, name, department, position, supervisor..."
                         value="<?php echo htmlspecialchars($search); ?>">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-2">
                     <select name="team" class="form-control">
                         <option value="">
                             All Teams
@@ -164,9 +218,55 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                     </select>
                 </div>
                 <div class="col-md-2">
+                    <select name="department" class="form-control">
+                        <option value="">
+                            All Departments
+                        </option>
+                        <?php foreach ($departmentList as $departmentOption): ?>
+                            <option value="<?php echo htmlspecialchars($departmentOption); ?>" <?php
+                                echo $departmentFilter === $departmentOption ? 'selected' : '';
+                                ?>>
+                                <?php echo htmlspecialchars($departmentOption); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select name="supervisor" class="form-control">
+                        <option value="">
+                            All Supervisors
+                        </option>
+                        <?php foreach ($supervisorList as $supervisorOption): ?>
+                            <option value="<?php echo htmlspecialchars($supervisorOption); ?>" <?php
+                                echo $supervisorFilter === $supervisorOption ? 'selected' : '';
+                                ?>>
+                                <?php echo htmlspecialchars($supervisorOption); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="assignment" class="form-control">
+                        <option value="">
+                            All
+                        </option>
+                        <option value="assigned" <?php echo $assignmentFilter === 'assigned' ? 'selected' : ''; ?>>
+                            Already Assigned
+                        </option>
+                        <option value="not_assigned" <?php echo $assignmentFilter === 'not_assigned' ? 'selected' : ''; ?>>
+                            Not Yet Assigned
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
                     <button type="submit" class="btn btn-primary w-100">
-                        Search
+                        Filter
                     </button>
+                    <?php if ($search !== '' || $teamFilter !== '' || $departmentFilter !== '' || $supervisorFilter !== '' || $assignmentFilter !== ''): ?>
+                        <a href="competency_assign.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary w-100">
+                            Reset
+                        </a>
+                    <?php endif; ?>
                 </div>
             </form>
         </div>
@@ -180,6 +280,15 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                 <?php endif; ?>
                 <?php if ($teamFilter !== ''): ?>
                     <input type="hidden" name="redirect_team" value="<?php echo htmlspecialchars($teamFilter); ?>">
+                <?php endif; ?>
+                <?php if ($departmentFilter !== ''): ?>
+                    <input type="hidden" name="redirect_department" value="<?php echo htmlspecialchars($departmentFilter); ?>">
+                <?php endif; ?>
+                <?php if ($supervisorFilter !== ''): ?>
+                    <input type="hidden" name="redirect_supervisor" value="<?php echo htmlspecialchars($supervisorFilter); ?>">
+                <?php endif; ?>
+                <?php if ($assignmentFilter !== ''): ?>
+                    <input type="hidden" name="redirect_assignment" value="<?php echo htmlspecialchars($assignmentFilter); ?>">
                 <?php endif; ?>
                 <div class="p-4 border-bottom">
                     <h4 class="mb-1">
