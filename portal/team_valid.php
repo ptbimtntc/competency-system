@@ -6,6 +6,13 @@ require_once "../admin/pagination.php";
 
 $scopeNiks = portal_scope_niks($conn);
 $search = trim($_GET['search'] ?? '');
+$filterCompetencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
+
+$competencyOptionsResult = mysqli_query($conn, "SELECT id, name FROM competencies ORDER BY name ASC");
+$competencyOptions = [];
+while ($row = mysqli_fetch_assoc($competencyOptionsResult)) {
+    $competencyOptions[] = $row;
+}
 
 [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks, 'e.nik');
 $conditions = ["ec.status = 'VALID'", "ec.is_active = 1", "e.is_deleted = 0"];
@@ -17,6 +24,11 @@ if ($search !== '') {
     $params[] = $keyword;
     $params[] = $keyword;
     $types .= "ss";
+}
+if ($filterCompetencyId > 0) {
+    $conditions[] = "c.id = ?";
+    $params[] = $filterCompetencyId;
+    $types .= "i";
 }
 $params = array_merge($params, $scopeParams);
 $types .= str_repeat("s", count($scopeParams));
@@ -63,6 +75,7 @@ while ($row = mysqli_fetch_assoc($result)) {
 
 $paginationBaseParams = array_filter([
     'search' => $search,
+    'competency_id' => $filterCompetencyId > 0 ? $filterCompetencyId : null,
 ], function ($value) {
     return $value !== null && $value !== '';
 });
@@ -107,9 +120,20 @@ $paginationBaseParams = array_filter([
 
                 <div class="employee-search">
                     <form method="GET" class="row g-2">
-                        <div class="col-md-9">
+                        <div class="col-md-6">
                             <input type="text" name="search" class="form-control" placeholder="NIK / nama"
                                 value="<?php echo htmlspecialchars($search); ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <select name="competency_id" class="form-control">
+                                <option value="0">Semua Kompetensi</option>
+                                <?php foreach ($competencyOptions as $competencyOption): ?>
+                                    <option value="<?php echo $competencyOption['id']; ?>"
+                                        <?php echo $filterCompetencyId === (int) $competencyOption['id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($competencyOption['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                         <div class="col-md-3">
                             <button type="submit" class="btn btn-primary w-100">Terapkan</button>
