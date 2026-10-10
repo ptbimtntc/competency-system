@@ -66,6 +66,10 @@ $paginationBaseParams = array_filter([
 ], function ($value) {
     return $value !== null && $value !== '';
 });
+$backUrl = 'team_failed.php' . (!empty($paginationBaseParams)
+    ? '?' . http_build_query($paginationBaseParams, '', '&', PHP_QUERY_RFC3986)
+    : '');
+$quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -105,6 +109,13 @@ $paginationBaseParams = array_filter([
                     <a href="dashboard.php" class="btn btn-outline-secondary">&larr; Back to Dashboard</a>
                 </div>
 
+                <?php if ($quizRetrySuccess): ?>
+                    <div class="alert alert-success">
+                        Status berhasil direset ke Assigned. Karyawan bisa mengerjakan ulang kuis dalam 1 jam ke
+                        depan sebagai training kedua, setelah itu terkunci lagi.
+                    </div>
+                <?php endif; ?>
+
                 <div class="employee-search">
                     <form method="GET" class="row g-2">
                         <div class="col-md-9">
@@ -124,6 +135,7 @@ $paginationBaseParams = array_filter([
                                 <tr>
                                     <th>NIK</th><th>Employee</th><th>Department</th>
                                     <th>Competency</th><th>Score</th><th>KKM</th><th>Training Date</th>
+                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -143,10 +155,25 @@ $paginationBaseParams = array_filter([
                                                     : date('d M Y', strtotime($row['training_date']));
                                                 ?>
                                             </td>
+                                            <td>
+                                                <?php if (portal_can_execute('dashboard')): ?>
+                                                    <form method="POST" action="employee_competency_quiz_retry.php" class="d-inline"
+                                                        onsubmit="return confirm('Reset status <?php echo htmlspecialchars(addslashes($row['employee_name']), ENT_QUOTES); ?> dari Failed ke Assigned? Karyawan akan dianggap hadir training kembali dan bisa mengerjakan kuis ulang sebagai training kedua dalam 1 jam ke depan.');">
+                                                        <?php echo csrf_input(); ?>
+                                                        <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
+                                                        <input type="hidden" name="back" value="<?php echo htmlspecialchars($backUrl); ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-warning">
+                                                            Reset ke Assigned
+                                                        </button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    &mdash;
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="7" class="text-center py-5">Tidak ada data untuk filter ini.</td></tr>
+                                    <tr><td colspan="8" class="text-center py-5">Tidak ada data untuk filter ini.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>

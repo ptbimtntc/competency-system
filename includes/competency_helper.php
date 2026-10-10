@@ -257,7 +257,7 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
 {
     $stmt = mysqli_prepare(
         $conn,
-        "SELECT scheduled_training_date FROM employee_competencies WHERE id = ? LIMIT 1"
+        "SELECT scheduled_training_date, status, notes FROM employee_competencies WHERE id = ? LIMIT 1"
     );
     mysqli_stmt_bind_param($stmt, "i", $employeeCompetencyId);
     mysqli_stmt_execute($stmt);
@@ -270,6 +270,18 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
     $retryUntil = $retryWindowHours > 0
         ? (new DateTime())->modify("+{$retryWindowHours} hours")->format('Y-m-d H:i:s')
         : null;
+    /*
+    | Kalau direset dari status FAILED, catat di notes supaya skor yang
+    | muncul setelah karyawan mengerjakan ulang kuis jelas berasal dari
+    | training kedua, bukan percobaan pertama yang sudah gagal.
+    */
+    $notes = trim((string) ($data['notes'] ?? ''));
+    if ($data['status'] === 'FAILED') {
+        $retryNote = 'Catatan: skor training sebelumnya gagal (di bawah KKM). '
+            . 'Training diulang pada ' . (new DateTime())->format('d M Y')
+            . ' -- skor berikut adalah skor training kedua.';
+        $notes = $notes !== '' ? $notes . "\n" . $retryNote : $retryNote;
+    }
 
     mysqli_begin_transaction($conn);
     try {
@@ -289,10 +301,11 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
                 certificate_number = NULL,
                 score = NULL,
                 status = ?,
-                quiz_retry_until = ?
+                quiz_retry_until = ?,
+                notes = ?
             WHERE id = ?"
         );
-        mysqli_stmt_bind_param($updateStmt, "ssi", $newStatus, $retryUntil, $employeeCompetencyId);
+        mysqli_stmt_bind_param($updateStmt, "sssi", $newStatus, $retryUntil, $notes, $employeeCompetencyId);
         mysqli_stmt_execute($updateStmt);
 
         mysqli_commit($conn);

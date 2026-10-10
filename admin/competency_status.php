@@ -215,6 +215,12 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                 Attendance berhasil dikonfirmasi.
             </div>
         <?php endif; ?>
+        <?php if (isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1'): ?>
+            <div class="alert alert-success">
+                Status berhasil direset ke Assigned. Karyawan bisa mengerjakan ulang kuis dalam 1 jam ke depan
+                sebagai training kedua, setelah itu terkunci lagi.
+            </div>
+        <?php endif; ?>
         <div class="form-card mb-4">
             <form method="GET" class="row g-3 align-items-end">
                 <input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>">
@@ -399,12 +405,25 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                                             <?php echo htmlspecialchars(competencyStatusLabel($status)); ?>
                                         </span>
                                     </td>
-                                    <td>
+                                    <td class="d-flex gap-2">
                                         <a href="employee_competency_edit.php?id=<?php echo $row['id']; ?>&back=<?php
                                             echo urlencode('competency_status.php?' . buildStatusFilterQuery($status));
                                             ?>" class="btn btn-sm btn-outline-primary">
                                             Detail
                                         </a>
+                                        <?php if ($status === 'FAILED' && admin_can_write()): ?>
+                                            <form method="POST" action="employee_competency_quiz_retry.php" class="d-inline"
+                                                onsubmit="return confirm('Reset status <?php echo htmlspecialchars(addslashes($row['employee_name']), ENT_QUOTES); ?> dari Failed ke Assigned? Karyawan akan dianggap hadir training kembali dan bisa mengerjakan kuis ulang sebagai training kedua dalam 1 jam ke depan.');">
+                                                <?php echo csrf_input(); ?>
+                                                <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
+                                                <input type="hidden" name="back" value="<?php
+                                                    echo htmlspecialchars('competency_status.php?' . buildStatusFilterQuery($status));
+                                                    ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-warning">
+                                                    Reset ke Assigned
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endwhile; ?>
