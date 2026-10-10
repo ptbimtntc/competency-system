@@ -21,6 +21,8 @@ $query = "
         department,
         position,
         supervisor,
+        supervisor_nik,
+        portal_role_id,
         team,
         license_id,
         photo
@@ -46,6 +48,24 @@ if (!$employee) {
     die("Employee tidak ditemukan.");
 }
 $error = "";
+
+/*
+|--------------------------------------------------------------------------
+| Daftar supervisor (semua employee aktif selain diri sendiri) + portal roles
+|--------------------------------------------------------------------------
+*/
+$supervisorOptionsStmt = mysqli_prepare(
+    $conn,
+    "SELECT nik, name FROM employees WHERE is_deleted = 0 AND id != ? ORDER BY name ASC"
+);
+mysqli_stmt_bind_param($supervisorOptionsStmt, "i", $id);
+mysqli_stmt_execute($supervisorOptionsStmt);
+$supervisorOptions = mysqli_fetch_all(mysqli_stmt_get_result($supervisorOptionsStmt), MYSQLI_ASSOC);
+
+$portalRoleOptions = mysqli_fetch_all(
+    mysqli_query($conn, "SELECT id, name FROM portal_roles ORDER BY is_protected DESC, name ASC"),
+    MYSQLI_ASSOC
+);
 /*
 |--------------------------------------------------------------------------
 | UPDATE
@@ -64,6 +84,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         trim($_POST['position'] ?? '');
     $supervisor =
         trim($_POST['supervisor'] ?? '');
+    $supervisorNik =
+        trim($_POST['supervisor_nik'] ?? '');
+    $portalRoleId =
+        isset($_POST['portal_role_id']) && $_POST['portal_role_id'] !== ''
+            ? (int) $_POST['portal_role_id']
+            : null;
     $team =
         trim($_POST['team'] ?? '');
     $allowedTeams = ['A', 'B', 'C', 'D', 'NS'];
@@ -87,6 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ) {
         $error =
             "Team tidak valid.";
+    } elseif ($supervisorNik !== '' && $supervisorNik === $nik) {
+        $error =
+            "Karyawan tidak bisa menjadi supervisor untuk dirinya sendiri.";
     } else {
         /*
         |--------------------------------------------------------------------------
@@ -253,6 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($error === '') {
                 $teamValue = $team !== '' ? $team : null;
                 $supervisorValue = $supervisor !== '' ? $supervisor : null;
+                $supervisorNikValue = $supervisorNik !== '' ? $supervisorNik : null;
                 $updateQuery = "
                     UPDATE employees
                     SET
@@ -261,6 +291,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         department = ?,
                         position = ?,
                         supervisor = ?,
+                        supervisor_nik = ?,
+                        portal_role_id = ?,
                         team = ?,
                         license_id = ?,
                         photo = ?
@@ -273,12 +305,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     );
                 mysqli_stmt_bind_param(
                     $updateStmt,
-                    "ssssssssi",
+                    "ssssssisssi",
                     $nik,
                     $name,
                     $department,
                     $position,
                     $supervisorValue,
+                    $supervisorNikValue,
+                    $portalRoleId,
                     $teamValue,
                     $license_id,
                     $photoName,
@@ -439,6 +473,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         placeholder="Nama supervisor"
                         value="<?php echo htmlspecialchars($employee['supervisor'] ?? ''); ?>"
                     >
+                    <div class="form-text">
+                        Field lama (teks bebas), dipertahankan untuk histori/filter. Gunakan
+                        <strong>Supervisor (NIK)</strong> di bawah untuk hierarki Employee Portal.
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">
+                        Supervisor (NIK) &mdash; untuk Employee Portal
+                    </label>
+                    <select name="supervisor_nik" class="form-control">
+                        <option value="">-- Tidak ada / bukan bawahan siapa pun --</option>
+                        <?php foreach ($supervisorOptions as $option): ?>
+                            <option value="<?php echo htmlspecialchars($option['nik']); ?>" <?php
+                                echo ($employee['supervisor_nik'] ?? '') === $option['nik'] ? 'selected' : '';
+                                ?>>
+                                <?php echo htmlspecialchars($option['nik'] . ' - ' . $option['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">
+                        Portal Role
+                    </label>
+                    <select name="portal_role_id" class="form-control">
+                        <option value="">-- Otomatis (berdasarkan hierarki) --</option>
+                        <?php foreach ($portalRoleOptions as $roleOption): ?>
+                            <option value="<?php echo (int) $roleOption['id']; ?>" <?php
+                                echo (int) ($employee['portal_role_id'] ?? 0) === (int) $roleOption['id'] ? 'selected' : '';
+                                ?>>
+                                <?php echo htmlspecialchars($roleOption['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text">
+                        Kosongkan untuk perilaku default: otomatis jadi Supervisor jika punya bawahan,
+                        atau tidak bisa login portal jika tidak punya bawahan.
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">

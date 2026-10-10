@@ -27,6 +27,9 @@ if (admin_is_superadmin()) {
     $__menuItems[] = ['label' => 'Admin Accounts', 'icon' => 'bi-shield-lock-fill', 'href' => 'admins.php', 'match' => [
         'admins.php', 'admin_add.php', 'admin_edit.php',
     ]];
+    $__menuItems[] = ['label' => 'Portal Roles', 'icon' => 'bi-person-badge-fill', 'href' => 'portal_roles.php', 'match' => [
+        'portal_roles.php', 'portal_role_add.php', 'portal_role_edit.php',
+    ]];
 }
 ?>
 <aside class="admin-sidebar">
