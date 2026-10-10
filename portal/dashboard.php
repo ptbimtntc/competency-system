@@ -192,7 +192,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                         </a>
                     </div>
                     <div class="col-md-4 col-sm-6">
-                        <a href="dashboard.php?quiz_status=failed#quiz-scores" class="stat-card stat-card-link stat-card-danger">
+                        <a href="team_failed.php" class="stat-card stat-card-link stat-card-danger">
                             <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
                             <div>
                                 <div class="stat-label">Failed</div>
@@ -282,7 +282,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                     </div>
                 </div>
 
-                <div id="quiz-scores" class="dashboard-header mt-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div class="dashboard-header mt-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
                     <div>
                         <h2 class="mb-0">Nilai Quiz per Karyawan</h2>
                         <p>

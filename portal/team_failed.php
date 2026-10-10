@@ -1,0 +1,135 @@
+<?php
+require_once "../includes/portal_auth.php";
+portal_require_view('dashboard');
+require_once "../includes/competency_helper.php";
+
+$scopeNiks = portal_scope_niks($conn);
+$search = trim($_GET['search'] ?? '');
+
+[$scopeClause, $scopeParams] = portal_scope_where($scopeNiks, 'e.nik');
+$conditions = ["ec.status = 'FAILED'", "ec.is_active = 1", "e.is_deleted = 0"];
+$params = [];
+$types = "";
+if ($search !== '') {
+    $conditions[] = "(e.nik LIKE ? OR e.name LIKE ?)";
+    $keyword = "%" . $search . "%";
+    $params[] = $keyword;
+    $params[] = $keyword;
+    $types .= "ss";
+}
+$params = array_merge($params, $scopeParams);
+$types .= str_repeat("s", count($scopeParams));
+
+$query = "
+    SELECT
+        ec.id, ec.score, ec.training_date, ec.quiz_submitted_at,
+        e.nik, e.name AS employee_name, e.department, e.position,
+        c.name AS competency_name, c.passing_score
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    INNER JOIN competencies c ON c.id = ec.competency_id
+    WHERE " . implode(" AND ", $conditions) . $scopeClause . "
+    ORDER BY e.name ASC
+";
+$stmt = mysqli_prepare($conn, $query);
+if (!empty($params)) {
+    mysqli_stmt_bind_param($stmt, $types, ...$params);
+}
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+$rows = [];
+while ($row = mysqli_fetch_assoc($result)) {
+    $rows[] = $row;
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Failed Competencies Tim - Bekaert Competency</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css?v=<?php echo filemtime(__DIR__ . '/../assets/css/style.css'); ?>">
+</head>
+
+<body class="admin-page">
+    <nav class="admin-navbar">
+        <div class="admin-brand">
+            <img src="../assets/images/Bekaert_logo_neg_RGB.png" alt="Bekaert" class="brand-logo">
+            <span>Employee Portal</span>
+        </div>
+        <div class="admin-user">
+            <span>
+                <?php echo htmlspecialchars($_SESSION['portal_name']); ?>
+                <span class="badge text-bg-light"><?php echo htmlspecialchars($_SESSION['portal_role_name']); ?></span>
+            </span>
+            <a href="logout.php"><i class="bi bi-box-arrow-right"></i> Logout</a>
+        </div>
+    </nav>
+    <div class="admin-layout">
+        <?php include "../includes/portal_sidebar.php"; ?>
+        <main class="admin-content">
+            <div class="admin-container">
+                <div class="page-header">
+                    <div>
+                        <h1>Failed Competencies</h1>
+                        <p>Anggota tim dengan nilai quiz di bawah KKM (passing score)</p>
+                    </div>
+                    <a href="dashboard.php" class="btn btn-outline-secondary">&larr; Back to Dashboard</a>
+                </div>
+
+                <div class="employee-search">
+                    <form method="GET" class="row g-2">
+                        <div class="col-md-9">
+                            <input type="text" name="search" class="form-control" placeholder="NIK / nama"
+                                value="<?php echo htmlspecialchars($search); ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary w-100">Terapkan</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="employee-table-card">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>NIK</th><th>Employee</th><th>Department</th>
+                                    <th>Competency</th><th>Score</th><th>KKM</th><th>Training Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (count($rows) > 0): ?>
+                                    <?php foreach ($rows as $row): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($row['nik']); ?></td>
+                                            <td><strong><?php echo htmlspecialchars($row['employee_name']); ?></strong></td>
+                                            <td><?php echo htmlspecialchars($row['department'] ?? '-'); ?></td>
+                                            <td><?php echo htmlspecialchars($row['competency_name']); ?></td>
+                                            <td><?php echo htmlspecialchars((string) $row['score']); ?></td>
+                                            <td><?php echo htmlspecialchars((string) $row['passing_score']); ?></td>
+                                            <td>
+                                                <?php
+                                                echo empty($row['training_date'])
+                                                    ? '-'
+                                                    : date('d M Y', strtotime($row['training_date']));
+                                                ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="7" class="text-center py-5">Tidak ada data untuk filter ini.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>
