@@ -1373,13 +1373,47 @@ body {
     font-size: 13px;
 }
 
+/* Header tabel freeze: table-responsive jadi area scroll sendiri (bukan
+halaman) supaya thead sticky punya scroll context untuk nempel di atas. */
+.employee-table-card .table-responsive {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
 .employee-table-card thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     background: #f6f8fb;
     color: #4c5868;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .4px;
     white-space: nowrap;
+    box-shadow: 0 1px 0 #e0e5eb;
+}
+
+/* Tabel di dalam .card (mis. dashboard) pakai thead sticky yang sama. */
+.card .table-responsive thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f6f8fb;
+    box-shadow: 0 1px 0 #e0e5eb;
+}
+
+/* Tabel di dalam .form-card (mis. permission menu role) pakai thead sticky juga. */
+.form-card .table-responsive {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.form-card .table-responsive thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    box-shadow: 0 1px 0 #e0e5eb;
 }
 
 .employee-photo-small {
