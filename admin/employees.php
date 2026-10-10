@@ -172,7 +172,18 @@ $paginationBaseParams = array_filter([
         <?php if ($showDeleted): ?>
             <div class="alert alert-warning">
                 Menampilkan <strong>karyawan terhapus</strong>. Data &amp; riwayat sertifikatnya masih tersimpan;
-                klik <strong>Restore</strong> untuk memulihkan.
+                klik <strong>Restore</strong> untuk memulihkan, atau <strong>Hapus Permanen</strong> untuk menghapus
+                data beserta riwayat trainingnya selamanya (tidak dapat dibatalkan).
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_GET['permanent_deleted'])): ?>
+            <div class="alert alert-success">
+                Karyawan berhasil dihapus permanen beserta seluruh riwayat trainingnya.
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_GET['permanent_error'])): ?>
+            <div class="alert alert-danger">
+                Gagal menghapus permanen karyawan. Silakan coba lagi.
             </div>
         <?php endif; ?>
         <!-- SEARCH -->
@@ -341,7 +352,18 @@ $paginationBaseParams = array_filter([
                                                             Restore
                                                         </button>
                                                     </form>
-                                                <?php else: ?>
+                                                <?php endif; ?>
+                                                <?php if (admin_is_superadmin()): ?>
+                                                    <form method="POST" action="employee_delete_permanent.php" class="d-inline"
+                                                        onsubmit="return confirm('Hapus PERMANEN karyawan &quot;<?php echo htmlspecialchars(addslashes($employee['name']), ENT_QUOTES); ?>&quot; beserta seluruh riwayat trainingnya? Tindakan ini tidak dapat dibatalkan.');">
+                                                        <?php echo csrf_input(); ?>
+                                                        <input type="hidden" name="id" value="<?php echo $employee['id']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                            Hapus Permanen
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
+                                                <?php if (!admin_can_write() && !admin_is_superadmin()): ?>
                                                     <span class="text-muted">&mdash;</span>
                                                 <?php endif; ?>
                                             <?php else: ?>

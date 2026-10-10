@@ -32,6 +32,59 @@ $totalValid = portal_count_by_status($conn, 'VALID', $scopeNiks);
 $totalExpired = portal_count_by_status($conn, 'EXPIRED', $scopeNiks);
 $totalAssigned = portal_count_by_status($conn, 'ASSIGNED', $scopeNiks);
 $totalFailed = portal_count_by_status($conn, 'FAILED', $scopeNiks);
+
+/* Resume Assignment & Kehadiran Training (tim) */
+[$scopeClause, $scopeParams] = portal_scope_where($scopeNiks);
+$queryAssignSummary = "
+    SELECT
+        COUNT(*) AS total_assigned,
+        SUM(CASE WHEN ec.attendance_confirmed = 1 THEN 1 ELSE 0 END) AS total_attended
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    WHERE e.is_deleted = 0 AND ec.scheduled_training_date IS NOT NULL {$scopeClause}
+";
+$assignStmt = mysqli_prepare($conn, $queryAssignSummary);
+if (!empty($scopeParams)) {
+    mysqli_stmt_bind_param($assignStmt, str_repeat('s', count($scopeParams)), ...$scopeParams);
+}
+mysqli_stmt_execute($assignStmt);
+$assignSummary = mysqli_fetch_assoc(mysqli_stmt_get_result($assignStmt));
+$totalAssignedAll = (int) $assignSummary['total_assigned'];
+$totalAttended = (int) $assignSummary['total_attended'];
+$totalNotAttended = $totalAssignedAll - $totalAttended;
+$attendancePercentage = $totalAssignedAll > 0
+    ? round($totalAttended / $totalAssignedAll * 100, 1)
+    : 0;
+
+/* Nilai Quiz per Karyawan (tim) */
+$queryQuizScores = "
+    SELECT
+        e.nik,
+        e.name AS employee_name,
+        c.name AS competency_name,
+        ec.score,
+        c.passing_score,
+        ec.status,
+        ec.quiz_submitted_at
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    INNER JOIN competencies c ON c.id = ec.competency_id
+    WHERE e.is_deleted = 0 AND ec.quiz_submitted_at IS NOT NULL {$scopeClause}
+    ORDER BY ec.quiz_submitted_at DESC
+";
+$quizStmt = mysqli_prepare($conn, $queryQuizScores);
+if (!empty($scopeParams)) {
+    mysqli_stmt_bind_param($quizStmt, str_repeat('s', count($scopeParams)), ...$scopeParams);
+}
+mysqli_stmt_execute($quizStmt);
+$quizResult = mysqli_stmt_get_result($quizStmt);
+$quizScores = [];
+while ($row = mysqli_fetch_assoc($quizResult)) {
+    $quizScores[] = $row;
+}
+$totalQuizTaken = count($quizScores);
+$totalQuizPassed = count(array_filter($quizScores, fn($r) => $r['status'] !== 'FAILED'));
+$totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -116,6 +169,118 @@ $totalFailed = portal_count_by_status($conn, 'FAILED', $scopeNiks);
                                 <div class="stat-number"><?php echo $totalFailed; ?></div>
                             </div>
                         </a>
+                    </div>
+                </div>
+
+                <div class="dashboard-header mt-4">
+                    <div>
+                        <h2 class="mb-0">Resume Assignment &amp; Kehadiran Training</h2>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card stat-card-primary">
+                            <div class="stat-icon"><i class="bi bi-clipboard-check-fill"></i></div>
+                            <div>
+                                <div class="stat-label">Total Di-assign</div>
+                                <div class="stat-number"><?php echo $totalAssignedAll; ?></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card stat-card-success">
+                            <div class="stat-icon"><i class="bi bi-person-check-fill"></i></div>
+                            <div>
+                                <div class="stat-label">Hadir</div>
+                                <div class="stat-number"><?php echo $totalAttended; ?></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card stat-card-danger">
+                            <div class="stat-icon"><i class="bi bi-person-x-fill"></i></div>
+                            <div>
+                                <div class="stat-label">Belum Hadir</div>
+                                <div class="stat-number"><?php echo $totalNotAttended; ?></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="stat-card stat-card-warning">
+                            <div class="stat-icon"><i class="bi bi-percent"></i></div>
+                            <div>
+                                <div class="stat-label">Persentase Kehadiran</div>
+                                <div class="stat-number"><?php echo $attendancePercentage; ?>%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar bg-success" role="progressbar"
+                                style="width: <?php echo $attendancePercentage; ?>%;"
+                                aria-valuenow="<?php echo $attendancePercentage; ?>" aria-valuemin="0" aria-valuemax="100">
+                            </div>
+                        </div>
+                        <p class="text-muted mb-0 mt-2" style="font-size: 13px;">
+                            <?php echo $totalAttended; ?> dari <?php echo $totalAssignedAll; ?> karyawan yang
+                            di-assign training sudah hadir (<?php echo $attendancePercentage; ?>%).
+                        </p>
+                    </div>
+                </div>
+
+                <div class="dashboard-header mt-4">
+                    <div>
+                        <h2 class="mb-0">Nilai Quiz per Karyawan</h2>
+                        <p>
+                            <?php echo $totalQuizTaken; ?> quiz dikerjakan &mdash;
+                            <span class="text-success"><?php echo $totalQuizPassed; ?> Lulus</span> /
+                            <span class="text-danger"><?php echo $totalQuizFailed; ?> Gagal</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>NIK</th>
+                                    <th>Nama</th>
+                                    <th>Kompetensi</th>
+                                    <th>Skor</th>
+                                    <th>KKM</th>
+                                    <th>Status</th>
+                                    <th>Tanggal Submit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (count($quizScores) > 0): ?>
+                                    <?php foreach ($quizScores as $quizRow): ?>
+                                        <?php $isPassed = $quizRow['status'] !== 'FAILED'; ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($quizRow['nik']); ?></td>
+                                            <td><strong><?php echo htmlspecialchars($quizRow['employee_name']); ?></strong></td>
+                                            <td><?php echo htmlspecialchars($quizRow['competency_name']); ?></td>
+                                            <td><?php echo htmlspecialchars((string) $quizRow['score']); ?></td>
+                                            <td><?php echo htmlspecialchars((string) $quizRow['passing_score']); ?></td>
+                                            <td>
+                                                <span class="badge <?php echo $isPassed ? 'text-bg-success' : 'text-bg-danger'; ?>">
+                                                    <?php echo $isPassed ? 'Lulus' : 'Gagal'; ?>
+                                                </span>
+                                            </td>
+                                            <td><?php echo date('d M Y', strtotime($quizRow['quiz_submitted_at'])); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="7" class="text-center py-4">
+                                            Belum ada anggota tim yang mengerjakan quiz.
+                                        </td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
