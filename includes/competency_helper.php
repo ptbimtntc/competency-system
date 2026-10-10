@@ -300,6 +300,12 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
         mysqli_stmt_bind_param($deleteStmt, "i", $employeeCompetencyId);
         mysqli_stmt_execute($deleteStmt);
 
+        /*
+        | score SENGAJA TIDAK di-null-kan di sini -- kalau karyawan tidak
+        | mengerjakan ulang dalam jendela waktu retry, sweepExpiredQuizRetries()
+        | akan mengembalikan status ke FAILED dengan skor ini (skor terakhir/
+        | skor yang gagal sebelumnya) tetap tampil, bukan kosong.
+        */
         $updateStmt = mysqli_prepare(
             $conn,
             "UPDATE employee_competencies
@@ -307,7 +313,6 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
                 training_date = NULL,
                 expiry_date = NULL,
                 certificate_number = NULL,
-                score = NULL,
                 scheduled_training_date = ?,
                 attendance_confirmed = 1,
                 status = ?,
@@ -324,6 +329,45 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
         mysqli_rollback($conn);
         return false;
     }
+}
+/*
+|--------------------------------------------------------------------------
+| Kedaluwarsakan jendela retry kuis yang tidak dikerjakan
+|--------------------------------------------------------------------------
+|
+| Kalau karyawan tidak mengerjakan ulang kuis dalam 1 jam (quiz_retry_until)
+| setelah direset dari FAILED, kembalikan status ke FAILED -- skor lama
+| (yang sengaja tidak di-null-kan oleh resetEmployeeCompetencyQuiz()) tetap
+| tampil sebagai skor terakhir, dan tombol "Kerjakan Pertanyaan" otomatis
+| hilang/disabled lagi karena halaman karyawan hanya menampilkannya untuk
+| status ASSIGNED.
+|
+| Perbandingan waktu SENGAJA dilakukan di PHP (bukan "quiz_retry_until <
+| NOW()" di SQL), supaya tidak bergantung pada timezone server MySQL --
+| server ini berjalan dengan date.timezone=UTC di PHP, tapi MySQL NOW()
+| memakai timezone sistem (SE Asia Standard Time / WIB, UTC+7). Membedakan
+| ini penting: yang sama pernah bikin countdown retry di quiz.php terlihat
+| sudah habis padahal baru saja direset.
+|
+| Dipanggil sekali per request dari config/database.php supaya semua
+| halaman (dashboard, daftar Failed/Assigned, employee.php, dst) konsisten
+| melihat status yang sudah diperbarui tanpa perlu cron job terpisah.
+|
+*/
+function sweepExpiredQuizRetries(mysqli $conn): void
+{
+    $nowUtc = (new DateTime())->format('Y-m-d H:i:s');
+    $stmt = mysqli_prepare(
+        $conn,
+        "UPDATE employee_competencies
+        SET status = 'FAILED', quiz_retry_until = NULL
+        WHERE status = 'ASSIGNED'
+            AND quiz_submitted_at IS NULL
+            AND quiz_retry_until IS NOT NULL
+            AND quiz_retry_until < ?"
+    );
+    mysqli_stmt_bind_param($stmt, "s", $nowUtc);
+    mysqli_stmt_execute($stmt);
 }
 /*
 |--------------------------------------------------------------------------

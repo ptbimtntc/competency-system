@@ -81,6 +81,7 @@ $queryQuizScores = "
         c.name AS competency_name,
         ec.score,
         c.passing_score,
+        c.portal_reset_allowed,
         ec.status,
         ec.quiz_submitted_at,
         ec.quiz_retry_until
@@ -354,6 +355,10 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                                     <?php if ($retryActive): ?>
                                                         <span class="badge text-bg-warning">
                                                             Bisa dikerjakan ulang s.d. <?php echo date('H:i', strtotime($retryUntil)); ?>
+                                                        </span>
+                                                    <?php elseif ((int) $quizRow['portal_reset_allowed'] !== 1): ?>
+                                                        <span class="badge text-bg-secondary" title="Reset untuk competency ini dinonaktifkan oleh superadmin">
+                                                            Reset dikunci
                                                         </span>
                                                     <?php else: ?>
                                                         <form method="POST" action="employee_competency_quiz_retry.php" class="d-inline"

@@ -32,7 +32,8 @@ if (count($ids) > 0) {
         $conn,
         "SELECT ec.id FROM employee_competencies ec
          INNER JOIN employees e ON e.id = ec.employee_id
-         WHERE ec.status = 'FAILED' AND e.is_deleted = 0
+         INNER JOIN competencies c ON c.id = ec.competency_id
+         WHERE ec.status = 'FAILED' AND e.is_deleted = 0 AND c.portal_reset_allowed = 1
             AND ec.id IN ({$placeholders}) {$scopeClause}"
     );
     mysqli_stmt_bind_param($allowedStmt, $types, ...$params);

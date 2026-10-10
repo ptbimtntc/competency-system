@@ -40,7 +40,7 @@ $query = "
     SELECT
         ec.id, ec.score, ec.training_date, ec.quiz_submitted_at,
         e.nik, e.name AS employee_name, e.department, e.position,
-        c.name AS competency_name, c.passing_score
+        c.name AS competency_name, c.passing_score, c.portal_reset_allowed
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
@@ -152,16 +152,26 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             <tbody>
                                 <?php if (count($rows) > 0): ?>
                                     <?php foreach ($rows as $row): ?>
+                                        <?php $competencyResetAllowed = (int) $row['portal_reset_allowed'] === 1; ?>
                                         <tr>
                                             <?php if ($canReset): ?>
                                                 <td>
-                                                    <input type="checkbox" class="form-check-input reset-select" name="reset_ids[]" value="<?php echo $row['id']; ?>">
+                                                    <?php if ($competencyResetAllowed): ?>
+                                                        <input type="checkbox" class="form-check-input reset-select" name="reset_ids[]" value="<?php echo $row['id']; ?>">
+                                                    <?php else: ?>
+                                                        <input type="checkbox" class="form-check-input" disabled title="Reset untuk competency ini dinonaktifkan oleh superadmin">
+                                                    <?php endif; ?>
                                                 </td>
                                             <?php endif; ?>
                                             <td><?php echo htmlspecialchars($row['nik']); ?></td>
                                             <td><strong><?php echo htmlspecialchars($row['employee_name']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($row['department'] ?? '-'); ?></td>
-                                            <td><?php echo htmlspecialchars($row['competency_name']); ?></td>
+                                            <td>
+                                                <?php echo htmlspecialchars($row['competency_name']); ?>
+                                                <?php if (!$competencyResetAllowed): ?>
+                                                    <span class="badge text-bg-secondary" title="Reset untuk competency ini dinonaktifkan oleh superadmin">Reset dikunci</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td><?php echo htmlspecialchars((string) $row['score']); ?></td>
                                             <td><?php echo htmlspecialchars((string) $row['passing_score']); ?></td>
                                             <td>

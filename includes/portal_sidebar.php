@@ -19,4 +19,10 @@ $__menuResult = mysqli_query($conn, "SELECT slug, label, icon FROM portal_menus 
             <span><?php echo htmlspecialchars($__menu['label']); ?></span>
         </a>
     <?php endwhile; ?>
+    <?php if (portal_is_superadmin()): ?>
+        <a href="portal_reset_settings.php" class="<?php echo $__current === 'portal_reset_settings.php' ? 'active' : ''; ?>">
+            <i class="bi bi-sliders"></i>
+            <span>Pengaturan Reset</span>
+        </a>
+    <?php endif; ?>
 </aside>

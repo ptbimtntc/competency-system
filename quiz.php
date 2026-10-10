@@ -160,7 +160,13 @@ $submitError = isset($_GET['error']) && $_GET['error'] === '1';
                     <?php if (!empty($eligibility['retry_until'])): ?>
                         <script>
                             (function () {
-                                var expiresAt = new Date(<?php echo json_encode($eligibility['retry_until']); ?>.replace(' ', 'T')).getTime();
+                                /*
+                                | Server menyimpan retry_until dalam UTC (date.timezone=UTC di php.ini).
+                                | Tambahkan 'Z' supaya browser mem-parsingnya sebagai UTC juga, bukan
+                                | sebagai waktu lokal browser -- kalau tidak, di zona waktu +7 (WIB) nilainya
+                                | jadi terlihat sudah lewat padahal baru saja direset.
+                                */
+                                var expiresAt = new Date(<?php echo json_encode($eligibility['retry_until']); ?>.replace(' ', 'T') + 'Z').getTime();
                                 var countdownText = document.getElementById('retryCountdownText');
                                 var form = document.getElementById('quizForm');
                                 var submitBtn = document.getElementById('quizSubmitBtn');
