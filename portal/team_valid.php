@@ -8,7 +8,7 @@ $scopeNiks = portal_scope_niks($conn);
 $search = trim($_GET['search'] ?? '');
 
 [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks, 'e.nik');
-$conditions = ["ec.status = 'FAILED'", "ec.is_active = 1", "e.is_deleted = 0"];
+$conditions = ["ec.status = 'VALID'", "ec.is_active = 1", "e.is_deleted = 0"];
 $params = [];
 $types = "";
 if ($search !== '') {
@@ -38,7 +38,7 @@ $pg = paginate($totalRows, 25);
 
 $query = "
     SELECT
-        ec.id, ec.score, ec.training_date, ec.quiz_submitted_at,
+        ec.id, ec.score, ec.training_date, ec.expiry_date,
         e.nik, e.name AS employee_name, e.department, e.position,
         c.name AS competency_name, c.passing_score
     FROM employee_competencies ec
@@ -73,7 +73,7 @@ $paginationBaseParams = array_filter([
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Failed Competencies Tim - Bekaert Competency</title>
+    <title>Valid Competencies Tim - Bekaert Competency</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css?v=<?php echo filemtime(__DIR__ . '/../assets/css/style.css'); ?>">
@@ -99,8 +99,8 @@ $paginationBaseParams = array_filter([
             <div class="admin-container">
                 <div class="page-header">
                     <div>
-                        <h1>Failed Competencies</h1>
-                        <p>Anggota tim dengan nilai quiz di bawah KKM (passing score)</p>
+                        <h1>Valid Competencies</h1>
+                        <p>Anggota tim dengan kompetensi berstatus valid</p>
                     </div>
                     <a href="dashboard.php" class="btn btn-outline-secondary">&larr; Back to Dashboard</a>
                 </div>
@@ -123,7 +123,8 @@ $paginationBaseParams = array_filter([
                             <thead>
                                 <tr>
                                     <th>NIK</th><th>Employee</th><th>Department</th>
-                                    <th>Competency</th><th>Score</th><th>KKM</th><th>Training Date</th>
+                                    <th>Competency</th><th>Score</th><th>KKM</th>
+                                    <th>Training Date</th><th>Expiry Date</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -134,8 +135,8 @@ $paginationBaseParams = array_filter([
                                             <td><strong><?php echo htmlspecialchars($row['employee_name']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($row['department'] ?? '-'); ?></td>
                                             <td><?php echo htmlspecialchars($row['competency_name']); ?></td>
-                                            <td><?php echo htmlspecialchars((string) $row['score']); ?></td>
-                                            <td><?php echo htmlspecialchars((string) $row['passing_score']); ?></td>
+                                            <td><?php echo $row['score'] !== null ? htmlspecialchars((string) $row['score']) : '-'; ?></td>
+                                            <td><?php echo $row['passing_score'] !== null ? htmlspecialchars((string) $row['passing_score']) : '-'; ?></td>
                                             <td>
                                                 <?php
                                                 echo empty($row['training_date'])
@@ -143,10 +144,17 @@ $paginationBaseParams = array_filter([
                                                     : date('d M Y', strtotime($row['training_date']));
                                                 ?>
                                             </td>
+                                            <td>
+                                                <?php
+                                                echo empty($row['expiry_date'])
+                                                    ? 'No Expiry'
+                                                    : date('d M Y', strtotime($row['expiry_date']));
+                                                ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="7" class="text-center py-5">Tidak ada data untuk filter ini.</td></tr>
+                                    <tr><td colspan="8" class="text-center py-5">Tidak ada data untuk filter ini.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>

@@ -2,6 +2,7 @@
 require_once "../includes/portal_auth.php";
 portal_require_view('team_competency_matrix');
 require_once "../includes/competency_helper.php";
+require_once "../admin/pagination.php";
 
 $scopeNiks = portal_scope_niks($conn);
 $search = trim($_GET['search'] ?? '');
@@ -27,12 +28,24 @@ if ($search !== '') {
 // come last in the bound params array to match positional placeholder order.
 $params = array_merge($params, $scopeParams);
 $types .= str_repeat("s", count($scopeParams));
-$employeeQuery = "SELECT id, nik, name, team, department, position FROM employees WHERE "
-    . implode(" AND ", $conditions) . $scopeClause . " ORDER BY name ASC";
-$employeeStmt = mysqli_prepare($conn, $employeeQuery);
+$whereSql = " WHERE " . implode(" AND ", $conditions) . $scopeClause;
+
+$countStmt = mysqli_prepare($conn, "SELECT COUNT(*) AS total FROM employees" . $whereSql);
 if (!empty($params)) {
-    mysqli_stmt_bind_param($employeeStmt, $types, ...$params);
+    mysqli_stmt_bind_param($countStmt, $types, ...$params);
 }
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
+
+$employeeQuery = "SELECT id, nik, name, team, department, position FROM employees"
+    . $whereSql . " ORDER BY name ASC LIMIT ? OFFSET ?";
+$employeeParams = $params;
+$employeeTypes = $types . "ii";
+$employeeParams[] = $pg['per_page'];
+$employeeParams[] = $pg['offset'];
+$employeeStmt = mysqli_prepare($conn, $employeeQuery);
+mysqli_stmt_bind_param($employeeStmt, $employeeTypes, ...$employeeParams);
 mysqli_stmt_execute($employeeStmt);
 $employeeResult = mysqli_stmt_get_result($employeeStmt);
 $employees = [];
@@ -40,28 +53,40 @@ while ($row = mysqli_fetch_assoc($employeeResult)) {
     $employees[] = $row;
 }
 
+// Status map is restricted to employees on the current page only.
 $statusMap = [];
-$assignmentResult = mysqli_query(
-    $conn,
-    "SELECT ec.employee_id, ec.competency_id, ec.training_date, ec.scheduled_training_date,
-        ec.expiry_date, ec.score, ec.quiz_submitted_at, c.passing_score
-     FROM employee_competencies ec
-     INNER JOIN competencies c ON c.id = ec.competency_id
-     WHERE ec.is_active = 1"
-);
-while ($row = mysqli_fetch_assoc($assignmentResult)) {
-    $status = calculateCompetencyStatusWithSchedule(
-        $row['training_date'],
-        $row['expiry_date'],
-        $row['scheduled_training_date'],
-        $row['quiz_submitted_at']
+$employeeIds = array_map(static fn($employee) => (int) $employee['id'], $employees);
+if (count($employeeIds) > 0) {
+    $idPlaceholders = implode(",", array_fill(0, count($employeeIds), "?"));
+    $assignmentStmt = mysqli_prepare(
+        $conn,
+        "SELECT ec.employee_id, ec.competency_id, ec.training_date, ec.scheduled_training_date,
+            ec.expiry_date, ec.score, ec.quiz_submitted_at, c.passing_score
+         FROM employee_competencies ec
+         INNER JOIN competencies c ON c.id = ec.competency_id
+         WHERE ec.is_active = 1 AND ec.employee_id IN ($idPlaceholders)"
     );
-    $status = applyPassingScoreGate(
-        $status,
-        $row['score'] !== null ? (int) $row['score'] : null,
-        $row['passing_score'] !== null ? (int) $row['passing_score'] : null
-    );
-    $statusMap[(int) $row['employee_id']][(int) $row['competency_id']] = $status;
+    mysqli_stmt_bind_param($assignmentStmt, str_repeat("i", count($employeeIds)), ...$employeeIds);
+    mysqli_stmt_execute($assignmentStmt);
+    $assignmentResult = mysqli_stmt_get_result($assignmentStmt);
+} else {
+    $assignmentResult = false;
+}
+if ($assignmentResult !== false) {
+    while ($row = mysqli_fetch_assoc($assignmentResult)) {
+        $status = calculateCompetencyStatusWithSchedule(
+            $row['training_date'],
+            $row['expiry_date'],
+            $row['scheduled_training_date'],
+            $row['quiz_submitted_at']
+        );
+        $status = applyPassingScoreGate(
+            $status,
+            $row['score'] !== null ? (int) $row['score'] : null,
+            $row['passing_score'] !== null ? (int) $row['passing_score'] : null
+        );
+        $statusMap[(int) $row['employee_id']][(int) $row['competency_id']] = $status;
+    }
 }
 
 function portalMatrixCell(string $status): array
@@ -77,7 +102,13 @@ function portalMatrixCell(string $status): array
     };
 }
 
-$totalEmployees = count($employees);
+$totalEmployees = $totalRows;
+
+$paginationBaseParams = array_filter([
+    'search' => $search,
+], function ($value) {
+    return $value !== null && $value !== '';
+});
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -185,6 +216,16 @@ $totalEmployees = count($employees);
                             </tbody>
                         </table>
                     </div>
+                    <?php if ($totalRows > 0): ?>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                            <span class="text-muted" style="font-size:13px;">
+                                Menampilkan
+                                <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                                dari <?php echo $totalRows; ?> karyawan
+                            </span>
+                            <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                        </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </main>

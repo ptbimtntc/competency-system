@@ -2,6 +2,7 @@
 require_once "auth.php";
 require_once "../config/database.php";
 require_once "../includes/competency_helper.php";
+require_once "pagination.php";
 /*
 |--------------------------------------------------------------------------
 | Filter
@@ -108,20 +109,60 @@ if ($search !== '') {
     $params[] = $keyword;
     $types .= "ss";
 }
+/*
+|--------------------------------------------------------------------------
+| Hitung total + pagination
+|--------------------------------------------------------------------------
+*/
+$employeeCountQuery = "SELECT COUNT(*) AS total FROM employees";
+if (count($conditions) > 0) {
+    $employeeCountQuery .= " WHERE " . implode(" AND ", $conditions);
+}
+$countStmt = mysqli_prepare($conn, $employeeCountQuery);
+if (count($params) > 0) {
+    mysqli_stmt_bind_param($countStmt, $types, ...$params);
+}
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
+
 $employeeQuery = "SELECT id, nik, name, team, department, position, supervisor FROM employees";
 if (count($conditions) > 0) {
     $employeeQuery .= " WHERE " . implode(" AND ", $conditions);
 }
-$employeeQuery .= " ORDER BY name ASC";
+$employeeQuery .= " ORDER BY name ASC LIMIT ? OFFSET ?";
+$employeeDataParams = $params;
+$employeeDataTypes = $types . "ii";
+$employeeDataParams[] = $pg['per_page'];
+$employeeDataParams[] = $pg['offset'];
 $employeeStmt = mysqli_prepare($conn, $employeeQuery);
-if (count($params) > 0) {
-    mysqli_stmt_bind_param($employeeStmt, $types, ...$params);
-}
+mysqli_stmt_bind_param($employeeStmt, $employeeDataTypes, ...$employeeDataParams);
 mysqli_stmt_execute($employeeStmt);
 $employeeResult = mysqli_stmt_get_result($employeeStmt);
 $employees = [];
 while ($row = mysqli_fetch_assoc($employeeResult)) {
     $employees[] = $row;
+}
+/*
+|--------------------------------------------------------------------------
+| Seluruh employee yang lolos filter (tanpa LIMIT) -- dipakai untuk
+| kartu ringkasan supaya angkanya tetap mewakili seluruh hasil filter,
+| bukan cuma employee di halaman yang sedang ditampilkan.
+|--------------------------------------------------------------------------
+*/
+$allEmployeesQuery = "SELECT id, nik, name, team, department, position, supervisor FROM employees";
+if (count($conditions) > 0) {
+    $allEmployeesQuery .= " WHERE " . implode(" AND ", $conditions);
+}
+$allEmployeesStmt = mysqli_prepare($conn, $allEmployeesQuery);
+if (count($params) > 0) {
+    mysqli_stmt_bind_param($allEmployeesStmt, $types, ...$params);
+}
+mysqli_stmt_execute($allEmployeesStmt);
+$allEmployeesResult = mysqli_stmt_get_result($allEmployeesStmt);
+$allEmployees = [];
+while ($row = mysqli_fetch_assoc($allEmployeesResult)) {
+    $allEmployees[] = $row;
 }
 /*
 |--------------------------------------------------------------------------
@@ -169,13 +210,40 @@ while ($row = mysqli_fetch_assoc($assignmentResult)) {
 |
 */
 $rows = [];
+foreach ($employees as $employee) {
+    $requiredIds = $requirementsByPosition[$employee['position']] ?? [];
+    foreach ($requiredIds as $competencyId) {
+        $meta = $competencyMeta[$competencyId] ?? null;
+        if ($meta === null) {
+            continue;
+        }
+        $status = $statusMap[(int) $employee['id']][$competencyId] ?? '';
+        $isCompliant = ($status === 'VALID' || $status === 'EXPIRING_SOON');
+        if ($onlyGaps && $isCompliant) {
+            continue;
+        }
+        $rows[] = [
+            'employee' => $employee,
+            'competency_code' => $meta['code'],
+            'competency_name' => $meta['name'],
+            'status' => $status,
+            'is_gap' => !$isCompliant,
+        ];
+    }
+}
+/*
+|--------------------------------------------------------------------------
+| Statistik ringkasan -- dihitung dari SELURUH employee yang lolos
+| filter (bukan cuma halaman yang sedang ditampilkan).
+|--------------------------------------------------------------------------
+*/
 $employeesEvaluated = 0;
 $employeesFullyCompliant = 0;
 $employeesWithGap = 0;
 $totalGapItems = 0;
 $employeesNoRequirement = 0;
 
-foreach ($employees as $employee) {
+foreach ($allEmployees as $employee) {
     $requiredIds = $requirementsByPosition[$employee['position']] ?? [];
     if (count($requiredIds) === 0) {
         $employeesNoRequirement++;
@@ -194,16 +262,6 @@ foreach ($employees as $employee) {
             $employeeHasGap = true;
             $totalGapItems++;
         }
-        if ($onlyGaps && $isCompliant) {
-            continue;
-        }
-        $rows[] = [
-            'employee' => $employee,
-            'competency_code' => $meta['code'],
-            'competency_name' => $meta['name'],
-            'status' => $status,
-            'is_gap' => !$isCompliant,
-        ];
     }
     if ($employeeHasGap) {
         $employeesWithGap++;
@@ -223,6 +281,7 @@ $filterParams = array_filter([
     return $value !== null && $value !== '';
 });
 $queryString = http_build_query($filterParams, '', '&', PHP_QUERY_RFC3986);
+$paginationBaseParams = $filterParams;
 
 function gapStatusBadge(string $status): array
 {
@@ -465,6 +524,16 @@ function gapStatusBadge(string $status): array
                     </tbody>
                 </table>
             </div>
+            <?php if ($totalRows > 0): ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                    <span class="text-muted" style="font-size:13px;">
+                        Menampilkan
+                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                        dari <?php echo $totalRows; ?> karyawan
+                    </span>
+                    <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </main>

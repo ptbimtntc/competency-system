@@ -2,6 +2,7 @@
 require_once "auth.php";
 require_once "../config/database.php";
 require_once "../includes/competency_helper.php";
+require_once "pagination.php";
 
 $allowedStatuses = ['VALID', 'EXPIRING_SOON', 'EXPIRED', 'NOT_TAKEN', 'ASSIGNED', 'FAILED'];
 $status = strtoupper(trim($_GET['status'] ?? ''));
@@ -72,6 +73,19 @@ if ($attendanceFilter === 'confirmed') {
 } elseif ($attendanceFilter === 'not_confirmed') {
     $conditions[] = "ec.attendance_confirmed = 0";
 }
+$countQuery = "
+    SELECT COUNT(*) AS total
+    FROM employee_competencies ec
+    INNER JOIN employees e ON ec.employee_id = e.id
+    INNER JOIN competencies c ON ec.competency_id = c.id
+    WHERE " . implode(' AND ', $conditions) . "
+";
+$countStmt = mysqli_prepare($conn, $countQuery);
+mysqli_stmt_bind_param($countStmt, $types, ...$params);
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
+
 $query = "
     SELECT
         ec.id,
@@ -87,17 +101,34 @@ $query = "
         e.department,
         e.position,
         e.team,
-        c.name AS competency_name
+        ec.score,
+        c.name AS competency_name,
+        c.passing_score
     FROM employee_competencies ec
     INNER JOIN employees e ON ec.employee_id = e.id
     INNER JOIN competencies c ON ec.competency_id = c.id
     WHERE " . implode(' AND ', $conditions) . "
     ORDER BY ec.expiry_date ASC, e.name ASC
+    LIMIT ? OFFSET ?
 ";
+$dataParams = $params;
+$dataTypes = $types . "ii";
+$dataParams[] = $pg['per_page'];
+$dataParams[] = $pg['offset'];
 $stmt = mysqli_prepare($conn, $query);
-mysqli_stmt_bind_param($stmt, $types, ...$params);
+mysqli_stmt_bind_param($stmt, $dataTypes, ...$dataParams);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
+
+$paginationBaseParams = array_filter([
+    'status' => $status,
+    'search' => $search,
+    'competency_id' => $competencyFilter > 0 ? $competencyFilter : null,
+    'team' => $teamFilter,
+    'attendance' => $attendanceFilter,
+], function ($value) {
+    return $value !== null && $value !== '';
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -272,6 +303,12 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                                 Competency
                             </th>
                             <th>
+                                Score
+                            </th>
+                            <th>
+                                KKM
+                            </th>
+                            <th>
                                 <?php echo $status === 'ASSIGNED' ? 'Scheduled Date' : 'Training Date'; ?>
                             </th>
                             <th>
@@ -311,6 +348,12 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                                     </td>
                                     <td>
                                         <?php echo htmlspecialchars($row['competency_name']); ?>
+                                    </td>
+                                    <td>
+                                        <?php echo $row['score'] !== null ? htmlspecialchars((string) $row['score']) : '-'; ?>
+                                    </td>
+                                    <td>
+                                        <?php echo $row['passing_score'] !== null ? htmlspecialchars((string) $row['passing_score']) : '-'; ?>
                                     </td>
                                     <td>
                                         <?php if ($status === 'ASSIGNED'): ?>
@@ -367,7 +410,7 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="<?php echo $status === 'ASSIGNED' ? 9 : 8; ?>" class="text-center py-5">
+                                <td colspan="<?php echo $status === 'ASSIGNED' ? 11 : 10; ?>" class="text-center py-5">
                                     Tidak ada data competency dengan status ini.
                                 </td>
                             </tr>
@@ -375,6 +418,16 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                     </tbody>
                 </table>
             </div>
+            <?php if ($totalRows > 0): ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                    <span class="text-muted" style="font-size:13px;">
+                        Menampilkan
+                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                        dari <?php echo $totalRows; ?> data
+                    </span>
+                    <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                </div>
+            <?php endif; ?>
             <?php if ($status === 'ASSIGNED'): ?>
                 <?php if (mysqli_num_rows($result) > 0 && admin_can_write()): ?>
                     <div class="p-4 border-top">

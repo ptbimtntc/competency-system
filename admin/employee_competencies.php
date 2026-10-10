@@ -2,6 +2,7 @@
 require_once "auth.php";
 require_once "../config/database.php";
 require_once "../includes/competency_helper.php";
+require_once "pagination.php";
 $id = isset($_GET['id'])
     ? (int) $_GET['id']
     : 0;
@@ -45,6 +46,10 @@ if (!$employee) {
 | Ambil semua competency
 |--------------------------------------------------------------------------
 */
+$countCompetencyResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM competencies");
+$totalRows = (int) mysqli_fetch_assoc($countCompetencyResult)['total'];
+$pg = paginate($totalRows, 25);
+
 $competencyQuery = "
     SELECT
         id,
@@ -53,12 +58,18 @@ $competencyQuery = "
         passing_score
     FROM competencies
     ORDER BY name ASC
+    LIMIT ? OFFSET ?
 ";
-$competencyResult =
-    mysqli_query(
-        $conn,
-        $competencyQuery
-    );
+$competencyStmt = mysqli_prepare($conn, $competencyQuery);
+mysqli_stmt_bind_param($competencyStmt, "ii", $pg['per_page'], $pg['offset']);
+mysqli_stmt_execute($competencyStmt);
+$competencyResult = mysqli_stmt_get_result($competencyStmt);
+
+$paginationBaseParams = array_filter([
+    'id' => $id,
+], function ($value) {
+    return $value !== null && $value !== '';
+});
 /*
 |--------------------------------------------------------------------------
 | Ambil competency yang sudah dimiliki employee
@@ -489,6 +500,16 @@ while (
                         </tbody>
                     </table>
                 </div>
+                <?php if ($totalRows > 0): ?>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                        <span class="text-muted" style="font-size:13px;">
+                            Menampilkan
+                            <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                            dari <?php echo $totalRows; ?> competency
+                        </span>
+                        <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                    </div>
+                <?php endif; ?>
                 <div class="p-4 border-top">
                     <?php if (admin_can_write()): ?>
                         <button type="submit" class="btn btn-primary">

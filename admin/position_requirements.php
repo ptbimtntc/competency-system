@@ -1,6 +1,7 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_once "pagination.php";
 
 $success = isset($_GET['success']) && $_GET['success'] === '1';
 $selectedPosition = trim($_GET['position'] ?? '');
@@ -48,11 +49,22 @@ sort($positions);
 | Semua competency
 |--------------------------------------------------------------------------
 */
+$competencyCountResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM competencies");
+$totalRows = (int) mysqli_fetch_assoc($competencyCountResult)['total'];
+$pg = paginate($totalRows, 25);
+
 $competencies = [];
-$competencyResult = mysqli_query($conn, "SELECT id, code, name FROM competencies ORDER BY name ASC");
+$competencyStmt = mysqli_prepare(
+    $conn,
+    "SELECT id, code, name FROM competencies ORDER BY name ASC LIMIT ? OFFSET ?"
+);
+mysqli_stmt_bind_param($competencyStmt, "ii", $pg['per_page'], $pg['offset']);
+mysqli_stmt_execute($competencyStmt);
+$competencyResult = mysqli_stmt_get_result($competencyStmt);
 while ($row = mysqli_fetch_assoc($competencyResult)) {
     $competencies[] = $row;
 }
+$pageCompetencyIds = array_map(fn($c) => (int) $c['id'], $competencies);
 /*
 |--------------------------------------------------------------------------
 | Jumlah karyawan per posisi (info)
@@ -72,6 +84,12 @@ while ($row = mysqli_fetch_assoc($headcountResult)) {
 $selectedRequirementIds = $selectedPosition !== ''
     ? ($requirementsByPosition[$selectedPosition] ?? [])
     : [];
+
+$paginationBaseParams = array_filter([
+    'position' => $selectedPosition,
+], function ($value) {
+    return $value !== null && $value !== '';
+});
 ?>
 
 <!DOCTYPE html>
@@ -210,6 +228,11 @@ $selectedRequirementIds = $selectedPosition !== ''
                         <form method="POST" action="position_requirements_save.php">
                             <?php echo csrf_input(); ?>
                             <input type="hidden" name="position" value="<?php echo htmlspecialchars($selectedPosition); ?>">
+                            <?php foreach ($selectedRequirementIds as $existingId): ?>
+                                <?php if (!in_array((int) $existingId, $pageCompetencyIds, true)): ?>
+                                    <input type="hidden" name="competencies[]" value="<?php echo (int) $existingId; ?>">
+                                <?php endif; ?>
+                            <?php endforeach; ?>
                             <div class="table-responsive">
                                 <table class="table align-middle">
                                     <thead>
@@ -245,6 +268,16 @@ $selectedRequirementIds = $selectedPosition !== ''
                                     </tbody>
                                 </table>
                             </div>
+                            <?php if ($totalRows > 0): ?>
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                                    <span class="text-muted" style="font-size:13px;">
+                                        Menampilkan
+                                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                                        dari <?php echo $totalRows; ?> competency
+                                    </span>
+                                    <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                                </div>
+                            <?php endif; ?>
                             <?php if (admin_can_write()): ?>
                                 <button type="submit" class="btn btn-primary" <?php echo $tableMissing ? 'disabled' : ''; ?>>
                                     Simpan

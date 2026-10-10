@@ -1,15 +1,25 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_once "pagination.php";
 require_superadmin();
 
 $success = $_GET['success'] ?? '';
 $error = $_GET['error'] ?? '';
 
-$result = mysqli_query(
+$countResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM admins");
+$totalRows = (int) mysqli_fetch_assoc($countResult)['total'];
+$pg = paginate($totalRows, 25);
+
+$stmt = mysqli_prepare(
     $conn,
-    "SELECT id, username, name, role, created_at FROM admins ORDER BY username ASC"
+    "SELECT id, username, name, role, created_at FROM admins ORDER BY username ASC LIMIT ? OFFSET ?"
 );
+mysqli_stmt_bind_param($stmt, "ii", $pg['per_page'], $pg['offset']);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+
+$paginationBaseParams = [];
 ?>
 
 <!DOCTYPE html>
@@ -75,6 +85,13 @@ $result = mysqli_query(
                         </tr>
                     </thead>
                     <tbody>
+                        <?php if (mysqli_num_rows($result) === 0): ?>
+                            <tr>
+                                <td colspan="5" class="text-center py-5">
+                                    Tidak ada data admin.
+                                </td>
+                            </tr>
+                        <?php endif; ?>
                         <?php while ($admin = mysqli_fetch_assoc($result)): ?>
                             <tr>
                                 <td><strong><?php echo htmlspecialchars($admin['username']); ?></strong></td>
@@ -117,6 +134,16 @@ $result = mysqli_query(
                     </tbody>
                 </table>
             </div>
+            <?php if ($totalRows > 0): ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                    <span class="text-muted" style="font-size:13px;">
+                        Menampilkan
+                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                        dari <?php echo $totalRows; ?> admin
+                    </span>
+                    <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </main>

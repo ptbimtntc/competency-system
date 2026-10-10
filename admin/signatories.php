@@ -1,6 +1,7 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_once "pagination.php";
 /*
 |--------------------------------------------------------------------------
 | Search
@@ -46,24 +47,53 @@ foreach (array_keys($usedNames) as $name) {
     }
 }
 sort($missingSignatures);
+$conditions = [];
+$params = [];
+$types = "";
 if ($search !== '') {
-    $query = "
-        SELECT id, name, title, signature
-        FROM signatories
-        WHERE name LIKE ? OR title LIKE ?
-        ORDER BY name ASC
-    ";
-    $stmt = mysqli_prepare($conn, $query);
+    $conditions[] = "(name LIKE ? OR title LIKE ?)";
     $keyword = "%" . $search . "%";
-    mysqli_stmt_bind_param($stmt, "ss", $keyword, $keyword);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
-} else {
-    $result = mysqli_query(
-        $conn,
-        "SELECT id, name, title, signature FROM signatories ORDER BY name ASC"
-    );
+    array_push($params, $keyword, $keyword);
+    $types .= "ss";
 }
+$whereClause = count($conditions) > 0
+    ? " WHERE " . implode(" AND ", $conditions)
+    : "";
+/*
+|--------------------------------------------------------------------------
+| Hitung total + pagination
+|--------------------------------------------------------------------------
+*/
+$countStmt = mysqli_prepare($conn, "SELECT COUNT(*) AS total FROM signatories" . $whereClause);
+if (count($params) > 0) {
+    mysqli_stmt_bind_param($countStmt, $types, ...$params);
+}
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
+/*
+|--------------------------------------------------------------------------
+| Ambil data halaman ini
+|--------------------------------------------------------------------------
+*/
+$query = "
+    SELECT id, name, title, signature
+    FROM signatories
+" . $whereClause . " ORDER BY name ASC LIMIT ? OFFSET ?";
+$dataParams = $params;
+$dataTypes = $types . "ii";
+$dataParams[] = $pg['per_page'];
+$dataParams[] = $pg['offset'];
+$stmt = mysqli_prepare($conn, $query);
+mysqli_stmt_bind_param($stmt, $dataTypes, ...$dataParams);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+
+$paginationBaseParams = array_filter([
+    'search' => $search,
+], function ($value) {
+    return $value !== null && $value !== '';
+});
 ?>
 
 <!DOCTYPE html>
@@ -167,7 +197,7 @@ if ($search !== '') {
                     </thead>
                     <tbody>
                         <?php
-                        $number = 1;
+                        $number = $pg['offset'] + 1;
                         if (mysqli_num_rows($result) > 0):
                             while ($signatory = mysqli_fetch_assoc($result)):
                                 ?>
@@ -225,6 +255,16 @@ if ($search !== '') {
                     </tbody>
                 </table>
             </div>
+            <?php if ($totalRows > 0): ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                    <span class="text-muted" style="font-size:13px;">
+                        Menampilkan
+                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                        dari <?php echo $totalRows; ?> signatory
+                    </span>
+                    <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </main>

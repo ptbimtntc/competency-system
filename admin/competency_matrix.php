@@ -2,6 +2,7 @@
 require_once "auth.php";
 require_once "../config/database.php";
 require_once "../includes/competency_helper.php";
+require_once "pagination.php";
 /*
 |--------------------------------------------------------------------------
 | Filter
@@ -88,15 +89,28 @@ if ($search !== '') {
     $params[] = $keyword;
     $types .= "ss";
 }
-$employeeQuery = "SELECT id, nik, name, team, department, position FROM employees";
-if (count($conditions) > 0) {
-    $employeeQuery .= " WHERE " . implode(" AND ", $conditions);
-}
-$employeeQuery .= " ORDER BY name ASC";
-$employeeStmt = mysqli_prepare($conn, $employeeQuery);
+$whereClause = count($conditions) > 0
+    ? " WHERE " . implode(" AND ", $conditions)
+    : "";
+/*
+|--------------------------------------------------------------------------
+| Hitung total + pagination (hanya baris employee, bukan kolom competency)
+|--------------------------------------------------------------------------
+*/
+$countStmt = mysqli_prepare($conn, "SELECT COUNT(*) AS total FROM employees" . $whereClause);
 if (count($params) > 0) {
-    mysqli_stmt_bind_param($employeeStmt, $types, ...$params);
+    mysqli_stmt_bind_param($countStmt, $types, ...$params);
 }
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
+$employeeQuery = "SELECT id, nik, name, team, department, position FROM employees" . $whereClause . " ORDER BY name ASC LIMIT ? OFFSET ?";
+$employeeParams = $params;
+$employeeTypes = $types . "ii";
+$employeeParams[] = $pg['per_page'];
+$employeeParams[] = $pg['offset'];
+$employeeStmt = mysqli_prepare($conn, $employeeQuery);
+mysqli_stmt_bind_param($employeeStmt, $employeeTypes, ...$employeeParams);
 mysqli_stmt_execute($employeeStmt);
 $employeeResult = mysqli_stmt_get_result($employeeStmt);
 $employees = [];
@@ -106,24 +120,35 @@ while ($row = mysqli_fetch_assoc($employeeResult)) {
 /*
 |--------------------------------------------------------------------------
 | Peta status: [employee_id][competency_id] => status (dihitung ulang)
+| Hanya untuk employee pada halaman ini
 |--------------------------------------------------------------------------
 */
 $statusMap = [];
-$assignmentResult = mysqli_query(
-    $conn,
-    "SELECT
-        ec.employee_id,
-        ec.competency_id,
-        ec.training_date,
-        ec.scheduled_training_date,
-        ec.expiry_date,
-        ec.score,
-        ec.quiz_submitted_at,
-        c.passing_score
-    FROM employee_competencies ec
-    INNER JOIN competencies c ON c.id = ec.competency_id
-    WHERE ec.is_active = 1"
-);
+$employeeIds = array_map(static fn($employee) => (int) $employee['id'], $employees);
+if (count($employeeIds) > 0) {
+    $idPlaceholders = implode(",", array_fill(0, count($employeeIds), "?"));
+    $assignmentStmt = mysqli_prepare(
+        $conn,
+        "SELECT
+            ec.employee_id,
+            ec.competency_id,
+            ec.training_date,
+            ec.scheduled_training_date,
+            ec.expiry_date,
+            ec.score,
+            ec.quiz_submitted_at,
+            c.passing_score
+        FROM employee_competencies ec
+        INNER JOIN competencies c ON c.id = ec.competency_id
+        WHERE ec.is_active = 1 AND ec.employee_id IN ($idPlaceholders)"
+    );
+    mysqli_stmt_bind_param($assignmentStmt, str_repeat("i", count($employeeIds)), ...$employeeIds);
+    mysqli_stmt_execute($assignmentStmt);
+    $assignmentResult = mysqli_stmt_get_result($assignmentStmt);
+} else {
+    $assignmentResult = false;
+}
+if ($assignmentResult !== false) {
 while ($row = mysqli_fetch_assoc($assignmentResult)) {
     $status = calculateCompetencyStatusWithSchedule(
         $row['training_date'],
@@ -137,6 +162,7 @@ while ($row = mysqli_fetch_assoc($assignmentResult)) {
         $row['passing_score'] !== null ? (int) $row['passing_score'] : null
     );
     $statusMap[(int) $row['employee_id']][(int) $row['competency_id']] = $status;
+}
 }
 /*
 |--------------------------------------------------------------------------
@@ -324,7 +350,7 @@ $queryString = http_build_query($filterParams, '', '&', PHP_QUERY_RFC3986);
                 </h1>
                 <p>
                     Status competency seluruh karyawan dalam satu grid &mdash;
-                    <?php echo $totalEmployees; ?> karyawan &times; <?php echo count($competencies); ?> competency
+                    <?php echo $totalRows; ?> karyawan &times; <?php echo count($competencies); ?> competency
                 </p>
             </div>
             <div class="d-flex gap-2">
@@ -396,7 +422,7 @@ $queryString = http_build_query($filterParams, '', '&', PHP_QUERY_RFC3986);
             </form>
         </div>
 
-        <?php if ($totalEmployees === 0 || count($competencies) === 0): ?>
+        <?php if ($totalRows === 0 || count($competencies) === 0): ?>
             <div class="alert alert-info">
                 <?php
                 echo count($competencies) === 0
@@ -475,6 +501,16 @@ $queryString = http_build_query($filterParams, '', '&', PHP_QUERY_RFC3986);
                     </tfoot>
                 </table>
             </div>
+            <?php if ($totalRows > 0): ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                    <span class="text-muted" style="font-size:13px;">
+                        Menampilkan
+                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                        dari <?php echo $totalRows; ?> karyawan
+                    </span>
+                    <?php echo render_pagination($pg, $filterParams); ?>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </main>

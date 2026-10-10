@@ -1,6 +1,7 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_once "pagination.php";
 $competencyId = isset($_GET['competency_id'])
     ? (int) $_GET['competency_id']
     : 0;
@@ -20,21 +21,40 @@ if (!$competency) {
 }
 /*
 |--------------------------------------------------------------------------
+| Hitung total + pagination
+|--------------------------------------------------------------------------
+*/
+$countStmt = mysqli_prepare(
+    $conn,
+    "SELECT COUNT(*) AS total FROM competency_questions WHERE competency_id = ?"
+);
+mysqli_stmt_bind_param($countStmt, "i", $competencyId);
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
+/*
+|--------------------------------------------------------------------------
 | Ambil soal + pilihan jawaban
 |--------------------------------------------------------------------------
 */
 $questionStmt = mysqli_prepare(
     $conn,
     "SELECT id, question_text, allow_multiple_answers FROM competency_questions
-    WHERE competency_id = ? ORDER BY id ASC"
+    WHERE competency_id = ? ORDER BY id ASC LIMIT ? OFFSET ?"
 );
-mysqli_stmt_bind_param($questionStmt, "i", $competencyId);
+mysqli_stmt_bind_param($questionStmt, "iii", $competencyId, $pg['per_page'], $pg['offset']);
 mysqli_stmt_execute($questionStmt);
 $questionResult = mysqli_stmt_get_result($questionStmt);
 $questions = [];
 while ($q = mysqli_fetch_assoc($questionResult)) {
     $questions[] = $q;
 }
+
+$paginationBaseParams = array_filter([
+    'competency_id' => $competencyId,
+], function ($value) {
+    return $value !== null && $value !== '';
+});
 $choicesByQuestion = [];
 if (count($questions) > 0) {
     $questionIds = array_column($questions, 'id');
@@ -148,7 +168,7 @@ if (count($questions) > 0) {
                     </thead>
                     <tbody>
                         <?php if (count($questions) > 0): ?>
-                            <?php $number = 1; ?>
+                            <?php $number = $pg['offset'] + 1; ?>
                             <?php foreach ($questions as $question): ?>
                                 <?php
                                 $choices = $choicesByQuestion[$question['id']] ?? [];
@@ -211,6 +231,16 @@ if (count($questions) > 0) {
                     </tbody>
                 </table>
             </div>
+            <?php if ($totalRows > 0): ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                    <span class="text-muted" style="font-size:13px;">
+                        Menampilkan
+                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                        dari <?php echo $totalRows; ?> soal
+                    </span>
+                    <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </main>

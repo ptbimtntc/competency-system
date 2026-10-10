@@ -33,6 +33,7 @@ if ($sessionSelected) {
     $selectedCompetencyName = $competencyRow['name'];
 
     [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks, 'nik');
+
     $employeeQuery = "SELECT id, nik, name, department, position, team FROM employees WHERE is_deleted = 0 {$scopeClause} ORDER BY name ASC";
     $employeeStmt = mysqli_prepare($conn, $employeeQuery);
     if (!empty($scopeParams)) {
@@ -43,6 +44,7 @@ if ($sessionSelected) {
     while ($row = mysqli_fetch_assoc($employeeResult)) {
         $employees[] = $row;
     }
+    $totalRows = count($employees);
 
     $assignedStmt = mysqli_prepare(
         $conn,
@@ -168,7 +170,7 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                                                 $isThisSession = $existing && $existing['scheduled_training_date'] === $scheduledDate;
                                                 $isChecked = $isThisSession && (int) $existing['attendance_confirmed'] === 1;
                                                 ?>
-                                                <tr>
+                                                <tr class="paged-row">
                                                     <td>
                                                         <input type="hidden" name="visible_employees[]" value="<?php echo $employee['id']; ?>">
                                                         <input type="checkbox" class="form-check-input attendance-checkbox"
@@ -201,6 +203,12 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                                     </tbody>
                                 </table>
                             </div>
+                            <?php if ($totalRows > 0): ?>
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                                    <span class="text-muted" style="font-size:13px;" data-paging-summary></span>
+                                    <nav><ul class="pagination justify-content-center mb-0" data-paging-nav></ul></nav>
+                                </div>
+                            <?php endif; ?>
                             <?php if ($canExecute): ?>
                                 <div class="p-4 border-top">
                                     <button type="submit" class="btn btn-primary">Save Attendance</button>
@@ -217,6 +225,46 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                 document.getElementById('clearAllBtn')?.addEventListener('click', function () {
                     document.querySelectorAll('.attendance-checkbox').forEach(function (cb) { cb.checked = false; });
                 });
+                (function () {
+                    var PAGE_SIZE = 25;
+                    var rows = Array.prototype.slice.call(document.querySelectorAll('.paged-row'));
+                    var summary = document.querySelector('[data-paging-summary]');
+                    var nav = document.querySelector('[data-paging-nav]');
+                    if (!rows.length || !nav) {
+                        return;
+                    }
+                    var totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+                    var current = 1;
+
+                    function render() {
+                        var start = (current - 1) * PAGE_SIZE;
+                        var end = Math.min(start + PAGE_SIZE, rows.length);
+                        rows.forEach(function (row, i) {
+                            row.style.display = (i >= start && i < end) ? '' : 'none';
+                        });
+                        if (summary) {
+                            summary.textContent = 'Menampilkan ' + (start + 1) + '–' + end + ' dari ' + rows.length + ' karyawan';
+                        }
+                        var items = '';
+                        items += '<li class="page-item' + (current <= 1 ? ' disabled' : '') + '">'
+                            + '<a class="page-link" href="#" data-page="' + Math.max(1, current - 1) + '">&laquo;</a></li>';
+                        for (var p = 1; p <= totalPages; p++) {
+                            items += '<li class="page-item' + (p === current ? ' active' : '') + '">'
+                                + '<a class="page-link" href="#" data-page="' + p + '">' + p + '</a></li>';
+                        }
+                        items += '<li class="page-item' + (current >= totalPages ? ' disabled' : '') + '">'
+                            + '<a class="page-link" href="#" data-page="' + Math.min(totalPages, current + 1) + '">&raquo;</a></li>';
+                        nav.innerHTML = items;
+                        nav.querySelectorAll('a[data-page]').forEach(function (a) {
+                            a.addEventListener('click', function (e) {
+                                e.preventDefault();
+                                current = parseInt(a.getAttribute('data-page'), 10);
+                                render();
+                            });
+                        });
+                    }
+                    render();
+                })();
             </script>
         </main>
     </div>

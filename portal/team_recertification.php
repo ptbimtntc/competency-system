@@ -2,6 +2,7 @@
 require_once "../includes/portal_auth.php";
 portal_require_view('team_recertification');
 require_once "../includes/competency_helper.php";
+require_once "../admin/pagination.php";
 
 $scopeNiks = portal_scope_niks($conn);
 
@@ -48,6 +49,21 @@ if ($window === 'expired') {
 $listParams = array_merge($listParams, $scopeParams);
 $listTypes .= str_repeat("s", count($scopeParams));
 
+$listCountQuery = "
+    SELECT COUNT(*) AS total
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    INNER JOIN competencies c ON c.id = ec.competency_id
+    WHERE " . implode(" AND ", $listConditions) . $scopeClause . "
+";
+$listCountStmt = mysqli_prepare($conn, $listCountQuery);
+if (!empty($listParams)) {
+    mysqli_stmt_bind_param($listCountStmt, $listTypes, ...$listParams);
+}
+mysqli_stmt_execute($listCountStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($listCountStmt))['total'];
+$pg = paginate($totalRows, 25);
+
 $listQuery = "
     SELECT ec.id, ec.competency_id, ec.training_date, ec.expiry_date, ec.score, c.passing_score,
         DATEDIFF(ec.expiry_date, CURDATE()) AS days_remaining,
@@ -57,13 +73,23 @@ $listQuery = "
     INNER JOIN competencies c ON c.id = ec.competency_id
     WHERE " . implode(" AND ", $listConditions) . $scopeClause . "
     ORDER BY ec.expiry_date ASC, e.name ASC
+    LIMIT ? OFFSET ?
 ";
+$listDataParams = $listParams;
+$listDataTypes = $listTypes . "ii";
+$listDataParams[] = $pg['per_page'];
+$listDataParams[] = $pg['offset'];
 $listStmt = mysqli_prepare($conn, $listQuery);
-if (!empty($listParams)) {
-    mysqli_stmt_bind_param($listStmt, $listTypes, ...$listParams);
-}
+mysqli_stmt_bind_param($listStmt, $listDataTypes, ...$listDataParams);
 mysqli_stmt_execute($listStmt);
 $listResult = mysqli_stmt_get_result($listStmt);
+
+$paginationBaseParams = array_filter([
+    'window' => $window,
+    'search' => $search,
+], function ($value) {
+    return $value !== null && $value !== '';
+});
 
 $summaryQuery = "
     SELECT
@@ -225,6 +251,16 @@ $summaryDue90 = (int) ($summary['due_90'] ?? 0);
                             </tbody>
                         </table>
                     </div>
+                    <?php if ($totalRows > 0): ?>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                            <span class="text-muted" style="font-size:13px;">
+                                Menampilkan
+                                <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                                dari <?php echo $totalRows; ?> data
+                            </span>
+                            <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </main>

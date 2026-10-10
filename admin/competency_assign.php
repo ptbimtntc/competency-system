@@ -117,6 +117,7 @@ if (count($params) > 0) {
 }
 mysqli_stmt_execute($employeeStmt);
 $employeeResult = mysqli_stmt_get_result($employeeStmt);
+$totalRows = mysqli_num_rows($employeeResult);
 /*
 |--------------------------------------------------------------------------
 | Ambil employee yang sudah aktif untuk competency ini
@@ -394,12 +395,11 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                         </thead>
                         <tbody>
                             <?php
-                            $number = 1;
                             if (mysqli_num_rows($employeeResult) > 0):
                                 while ($employee = mysqli_fetch_assoc($employeeResult)):
                                     $isAssigned = isset($assignedEmployeeIds[(int) $employee['id']]);
                                     ?>
-                                    <tr>
+                                    <tr class="assign-row">
                                         <td>
                                             <input type="hidden" name="visible_employees[]" value="<?php echo $employee['id']; ?>">
                                             <input type="checkbox" class="form-check-input" name="employees[]"
@@ -445,6 +445,12 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                         </tbody>
                     </table>
                 </div>
+                <?php if ($totalRows > 0): ?>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                        <span class="text-muted" style="font-size:13px;" data-paging-summary></span>
+                        <nav><ul class="pagination justify-content-center mb-0" data-paging-nav></ul></nav>
+                    </div>
+                <?php endif; ?>
                 <div class="p-4 border-top">
                     <?php if (admin_can_write()): ?>
                         <button type="submit" class="btn btn-primary">
@@ -468,6 +474,46 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                 cb.checked = false;
             });
         });
+        (function () {
+            var PAGE_SIZE = 25;
+            var rows = Array.prototype.slice.call(document.querySelectorAll('.assign-row'));
+            var summary = document.querySelector('[data-paging-summary]');
+            var nav = document.querySelector('[data-paging-nav]');
+            if (!rows.length || !nav) {
+                return;
+            }
+            var totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+            var current = 1;
+
+            function render() {
+                var start = (current - 1) * PAGE_SIZE;
+                var end = Math.min(start + PAGE_SIZE, rows.length);
+                rows.forEach(function (row, i) {
+                    row.style.display = (i >= start && i < end) ? '' : 'none';
+                });
+                if (summary) {
+                    summary.textContent = 'Menampilkan ' + (start + 1) + '–' + end + ' dari ' + rows.length + ' karyawan';
+                }
+                var items = '';
+                items += '<li class="page-item' + (current <= 1 ? ' disabled' : '') + '">'
+                    + '<a class="page-link" href="#" data-page="' + Math.max(1, current - 1) + '">&laquo;</a></li>';
+                for (var p = 1; p <= totalPages; p++) {
+                    items += '<li class="page-item' + (p === current ? ' active' : '') + '">'
+                        + '<a class="page-link" href="#" data-page="' + p + '">' + p + '</a></li>';
+                }
+                items += '<li class="page-item' + (current >= totalPages ? ' disabled' : '') + '">'
+                    + '<a class="page-link" href="#" data-page="' + Math.min(totalPages, current + 1) + '">&raquo;</a></li>';
+                nav.innerHTML = items;
+                nav.querySelectorAll('a[data-page]').forEach(function (a) {
+                    a.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        current = parseInt(a.getAttribute('data-page'), 10);
+                        render();
+                    });
+                });
+            }
+            render();
+        })();
     </script>
 </main>
 </div>

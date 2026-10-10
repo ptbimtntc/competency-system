@@ -1,18 +1,28 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_once "pagination.php";
 require_superadmin();
 
 $success = $_GET['success'] ?? '';
 $error = $_GET['error'] ?? '';
 
-$result = mysqli_query(
+$countResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM portal_roles");
+$totalRows = (int) mysqli_fetch_assoc($countResult)['total'];
+$pg = paginate($totalRows, 25);
+
+$stmt = mysqli_prepare(
     $conn,
     "SELECT r.id, r.slug, r.name, r.description, r.is_protected,
         (SELECT COUNT(*) FROM employees e WHERE e.portal_role_id = r.id AND e.is_deleted = 0) AS assigned_count
      FROM portal_roles r
-     ORDER BY r.is_protected DESC, r.name ASC"
+     ORDER BY r.is_protected DESC, r.name ASC LIMIT ? OFFSET ?"
 );
+mysqli_stmt_bind_param($stmt, "ii", $pg['per_page'], $pg['offset']);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+
+$paginationBaseParams = [];
 
 $autoSupervisorCount = mysqli_fetch_assoc(mysqli_query(
     $conn,
@@ -90,6 +100,13 @@ $autoSupervisorCount = mysqli_fetch_assoc(mysqli_query(
                                 </tr>
                             </thead>
                             <tbody>
+                                <?php if (mysqli_num_rows($result) === 0): ?>
+                                    <tr>
+                                        <td colspan="4" class="text-center py-5">
+                                            Tidak ada data role.
+                                        </td>
+                                    </tr>
+                                <?php endif; ?>
                                 <?php while ($role = mysqli_fetch_assoc($result)): ?>
                                     <tr>
                                         <td>
@@ -121,6 +138,16 @@ $autoSupervisorCount = mysqli_fetch_assoc(mysqli_query(
                             </tbody>
                         </table>
                     </div>
+                    <?php if ($totalRows > 0): ?>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                            <span class="text-muted" style="font-size:13px;">
+                                Menampilkan
+                                <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                                dari <?php echo $totalRows; ?> role
+                            </span>
+                            <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </main>

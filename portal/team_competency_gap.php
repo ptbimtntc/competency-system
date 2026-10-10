@@ -1,5 +1,6 @@
 <?php
 require_once "../includes/portal_auth.php";
+require_once "../admin/pagination.php";
 portal_require_view('team_competency_gap');
 require_once "../includes/competency_helper.php";
 
@@ -126,6 +127,27 @@ foreach ($employees as $employee) {
     }
 }
 
+/*
+|--------------------------------------------------------------------------
+| Pagination
+|--------------------------------------------------------------------------
+| $rows is built entirely in PHP from business logic (not a single SQL
+| listing query), so the full set is computed first (stats above are based
+| on the full scoped employee set) and only the final table rows are
+| paginated here, in-memory, with the same paginate()/render_pagination()
+| helpers used elsewhere.
+*/
+$totalRows = count($rows);
+$pg = paginate($totalRows, 25);
+$pagedRows = array_slice($rows, $pg['offset'], $pg['per_page']);
+
+$paginationBaseParams = array_filter([
+    'search' => $search,
+    'only_gaps' => $onlyGaps ? '1' : '0',
+], function ($value) {
+    return $value !== '';
+});
+
 function portalGapStatusBadge(string $status): array
 {
     return match ($status) {
@@ -227,8 +249,8 @@ function portalGapStatusBadge(string $status): array
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (count($rows) > 0): ?>
-                                    <?php foreach ($rows as $row): ?>
+                                <?php if (count($pagedRows) > 0): ?>
+                                    <?php foreach ($pagedRows as $row): ?>
                                         <?php [$label, $badgeClass] = portalGapStatusBadge($row['status']); $employee = $row['employee']; ?>
                                         <tr>
                                             <td><?php echo htmlspecialchars($employee['nik']); ?></td>
@@ -256,6 +278,16 @@ function portalGapStatusBadge(string $status): array
                             </tbody>
                         </table>
                     </div>
+                    <?php if ($totalRows > 0): ?>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                            <span class="text-muted" style="font-size:13px;">
+                                Menampilkan
+                                <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                                dari <?php echo $totalRows; ?> data
+                            </span>
+                            <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </main>

@@ -1,20 +1,31 @@
 <?php
 require_once "../includes/portal_auth.php";
+require_once "../admin/pagination.php";
 portal_require_view('team_members');
 
 $scopeNiks = portal_scope_niks($conn);
 [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks, 'nik');
 
+$countStmt = mysqli_prepare($conn, "SELECT COUNT(*) AS total FROM employees WHERE is_deleted = 0 {$scopeClause}");
+if (!empty($scopeParams)) {
+    mysqli_stmt_bind_param($countStmt, str_repeat("s", count($scopeParams)), ...$scopeParams);
+}
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
+
 $query = "
     SELECT id, nik, name, department, position, team, license_id, photo
     FROM employees
     WHERE is_deleted = 0 {$scopeClause}
-    ORDER BY name ASC
+    ORDER BY name ASC LIMIT ? OFFSET ?
 ";
+$dataParams = $scopeParams;
+$dataTypes = str_repeat("s", count($scopeParams)) . "ii";
+$dataParams[] = $pg['per_page'];
+$dataParams[] = $pg['offset'];
 $stmt = mysqli_prepare($conn, $query);
-if (!empty($scopeParams)) {
-    mysqli_stmt_bind_param($stmt, str_repeat("s", count($scopeParams)), ...$scopeParams);
-}
+mysqli_stmt_bind_param($stmt, $dataTypes, ...$dataParams);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 ?>
@@ -70,7 +81,7 @@ $result = mysqli_stmt_get_result($stmt);
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php $number = 1; if (mysqli_num_rows($result) > 0): while ($employee = mysqli_fetch_assoc($result)): ?>
+                                <?php $number = $pg['offset'] + 1; if (mysqli_num_rows($result) > 0): while ($employee = mysqli_fetch_assoc($result)): ?>
                                     <tr>
                                         <td><?php echo $number++; ?></td>
                                         <td>
@@ -109,6 +120,16 @@ $result = mysqli_stmt_get_result($stmt);
                             </tbody>
                         </table>
                     </div>
+                    <?php if ($totalRows > 0): ?>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                            <span class="text-muted" style="font-size:13px;">
+                                Menampilkan
+                                <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                                dari <?php echo $totalRows; ?> karyawan
+                            </span>
+                            <?php echo render_pagination($pg, []); ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </main>

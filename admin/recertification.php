@@ -2,6 +2,7 @@
 require_once "auth.php";
 require_once "../config/database.php";
 require_once "../includes/competency_helper.php";
+require_once "pagination.php";
 /*
 |--------------------------------------------------------------------------
 | Filter
@@ -76,6 +77,20 @@ if ($window === 'expired') {
     $listParams[] = (int) $window;
     $listTypes .= "i";
 }
+$countQuery = "
+    SELECT COUNT(*) AS total
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    INNER JOIN competencies c ON c.id = ec.competency_id
+    WHERE " . implode(" AND ", $listConditions) . "
+";
+$countStmt = mysqli_prepare($conn, $countQuery);
+if (count($listParams) > 0) {
+    mysqli_stmt_bind_param($countStmt, $listTypes, ...$listParams);
+}
+mysqli_stmt_execute($countStmt);
+$totalRows = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
+$pg = paginate($totalRows, 25);
 $listQuery = "
     SELECT
         ec.id,
@@ -95,11 +110,14 @@ $listQuery = "
     INNER JOIN competencies c ON c.id = ec.competency_id
     WHERE " . implode(" AND ", $listConditions) . "
     ORDER BY ec.expiry_date ASC, e.name ASC
+    LIMIT ? OFFSET ?
 ";
+$listDataParams = $listParams;
+$listDataTypes = $listTypes . "ii";
+$listDataParams[] = $pg['per_page'];
+$listDataParams[] = $pg['offset'];
 $listStmt = mysqli_prepare($conn, $listQuery);
-if (count($listParams) > 0) {
-    mysqli_stmt_bind_param($listStmt, $listTypes, ...$listParams);
-}
+mysqli_stmt_bind_param($listStmt, $listDataTypes, ...$listDataParams);
 mysqli_stmt_execute($listStmt);
 $listResult = mysqli_stmt_get_result($listStmt);
 /*
@@ -150,6 +168,7 @@ $filterParams = array_filter([
     return $value !== null && $value !== '';
 });
 $queryString = http_build_query($filterParams, '', '&', PHP_QUERY_RFC3986);
+$paginationBaseParams = $filterParams;
 ?>
 
 <!DOCTYPE html>
@@ -398,6 +417,16 @@ $queryString = http_build_query($filterParams, '', '&', PHP_QUERY_RFC3986);
                     </tbody>
                 </table>
             </div>
+            <?php if ($totalRows > 0): ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                    <span class="text-muted" style="font-size:13px;">
+                        Menampilkan
+                        <?php echo $pg['offset'] + 1; ?>&ndash;<?php echo min($pg['offset'] + $pg['per_page'], $totalRows); ?>
+                        dari <?php echo $totalRows; ?> data
+                    </span>
+                    <?php echo render_pagination($pg, $paginationBaseParams); ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </main>
