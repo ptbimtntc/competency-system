@@ -84,7 +84,8 @@ $selectedRequirementIds = $selectedPosition !== ''
         Required Competency per Posisi - Bekaert Competency
     </title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css?v=<?php echo filemtime(__DIR__ . '/../assets/css/style.css'); ?>">
 </head>
 
 <body class="admin-page">
@@ -100,10 +101,13 @@ $selectedRequirementIds = $selectedPosition !== ''
                 <?php echo htmlspecialchars($_SESSION['admin_name']); ?>
             </span>
             <a href="logout.php">
-                Logout
+                <i class="bi bi-box-arrow-right"></i> Logout
             </a>
         </div>
     </nav>
+<div class="admin-layout">
+    <?php include "../includes/admin_sidebar.php"; ?>
+    <main class="admin-content">
     <div class="admin-container">
         <div class="page-header">
             <div>
@@ -115,9 +119,6 @@ $selectedRequirementIds = $selectedPosition !== ''
                 </p>
             </div>
             <div class="d-flex gap-2">
-                <a href="dashboard.php" class="btn btn-outline-secondary">
-                    &larr; Dashboard
-                </a>
                 <a href="competency_gap.php" class="btn btn-outline-secondary">
                     Lihat Laporan Gap
                 </a>
@@ -257,6 +258,8 @@ $selectedRequirementIds = $selectedPosition !== ''
             </div>
         </div>
     </div>
+</main>
+</div>
 </body>
 
 </html>

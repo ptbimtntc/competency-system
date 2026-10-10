@@ -116,8 +116,12 @@ $totalFailed =
         rel="stylesheet"
     >
     <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
         rel="stylesheet"
-        href="../assets/css/style.css"
+    >
+    <link
+        rel="stylesheet"
+        href="../assets/css/style.css?v=<?php echo filemtime(__DIR__ . '/../assets/css/style.css'); ?>"
     >
 </head>
 <body class="admin-page">
@@ -140,10 +144,13 @@ $totalFailed =
             </span>
         </span>
         <a href="logout.php">
-            Logout
+            <i class="bi bi-box-arrow-right"></i> Logout
         </a>
     </div>
 </nav>
+<div class="admin-layout">
+    <?php include "../includes/admin_sidebar.php"; ?>
+    <main class="admin-content">
 <div class="admin-container">
     <div class="dashboard-header">
         <div>
@@ -156,268 +163,63 @@ $totalFailed =
         </div>
     </div>
 <div class="row g-3">
-    <div class="col-md-3">
-        <a href="employees.php" class="stat-card stat-card-link">
-            <div class="stat-label">
-                Employees
-            </div>
-            <div class="stat-number">
-                <?php
-                echo $totalEmployee;
-                ?>
+    <div class="col-md-4 col-sm-6">
+        <a href="employees.php" class="stat-card stat-card-link stat-card-primary">
+            <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+            <div>
+                <div class="stat-label">Employees</div>
+                <div class="stat-number"><?php echo $totalEmployee; ?></div>
             </div>
         </a>
     </div>
-    <div class="col-md-3">
-        <a href="competencies.php" class="stat-card stat-card-link">
-            <div class="stat-label">
-                Competencies
-            </div>
-            <div class="stat-number">
-                <?php
-                echo $totalCompetency;
-                ?>
+    <div class="col-md-4 col-sm-6">
+        <a href="competencies.php" class="stat-card stat-card-link stat-card-primary">
+            <div class="stat-icon"><i class="bi bi-lightning-charge-fill"></i></div>
+            <div>
+                <div class="stat-label">Competencies</div>
+                <div class="stat-number"><?php echo $totalCompetency; ?></div>
             </div>
         </a>
     </div>
-    <div class="col-md-3">
-        <a href="competency_status.php?status=VALID" class="stat-card stat-card-link">
-            <div class="stat-label">
-                Valid
-            </div>
-            <div class="stat-number">
-                <?php
-                echo $totalValid;
-                ?>
+    <div class="col-md-4 col-sm-6">
+        <a href="competency_status.php?status=VALID" class="stat-card stat-card-link stat-card-success">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-label">Valid</div>
+                <div class="stat-number"><?php echo $totalValid; ?></div>
             </div>
         </a>
     </div>
-    <div class="col-md-3">
-        <a href="competency_status.php?status=EXPIRED" class="stat-card stat-card-link">
-            <div class="stat-label">
-                Expired
-            </div>
-            <div class="stat-number">
-                <?php
-                echo $totalExpired;
-                ?>
+    <div class="col-md-4 col-sm-6">
+        <a href="competency_status.php?status=EXPIRED" class="stat-card stat-card-link stat-card-danger">
+            <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+            <div>
+                <div class="stat-label">Expired</div>
+                <div class="stat-number"><?php echo $totalExpired; ?></div>
             </div>
         </a>
     </div>
-    <div class="col-md-3">
-        <a href="competency_status.php?status=ASSIGNED" class="stat-card stat-card-link">
-            <div class="stat-label">
-                Assigned
-            </div>
-            <div class="stat-number">
-                <?php
-                echo $totalAssigned;
-                ?>
+    <div class="col-md-4 col-sm-6">
+        <a href="competency_status.php?status=ASSIGNED" class="stat-card stat-card-link stat-card-warning">
+            <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
+            <div>
+                <div class="stat-label">Assigned</div>
+                <div class="stat-number"><?php echo $totalAssigned; ?></div>
             </div>
         </a>
     </div>
-    <div class="col-md-3">
-        <a href="competency_status.php?status=FAILED" class="stat-card stat-card-link">
-            <div class="stat-label">
-                Failed
-            </div>
-            <div class="stat-number">
-                <?php
-                echo $totalFailed;
-                ?>
+    <div class="col-md-4 col-sm-6">
+        <a href="competency_status.php?status=FAILED" class="stat-card stat-card-link stat-card-danger">
+            <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+            <div>
+                <div class="stat-label">Failed</div>
+                <div class="stat-number"><?php echo $totalFailed; ?></div>
             </div>
         </a>
     </div>
 </div>
-<div class="admin-menu-section">
-    <h2>
-        Management
-    </h2>
-    <div class="row g-3">
-        <div class="col-md-6">
-            <a
-                href="employees.php"
-                class="admin-menu-card"
-            >
-                <div class="admin-menu-icon">
-                    👤
-                </div>
-                <div>
-                    <strong>
-                        Employees
-                    </strong>
-                    <span>
-                        Manage employee data
-                    </span>
-                </div>
-            </a>
         </div>
-        <div class="col-md-6">
-            <a
-                href="competencies.php"
-                class="admin-menu-card"
-            >
-                <div class="admin-menu-icon">
-                    ⚡
-                </div>
-                <div>
-                    <strong>
-                        Competencies
-                    </strong>
-                    <span>
-                        Manage competency items
-                    </span>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-6">
-            <a
-                href="attendance.php"
-                class="admin-menu-card"
-            >
-                <div class="admin-menu-icon">
-                    📋
-                </div>
-                <div>
-                    <strong>
-                        Attendance
-                    </strong>
-                    <span>
-                        Konfirmasi kehadiran karyawan pada scheduled training
-                    </span>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-6">
-            <a
-                href="recertification.php"
-                class="admin-menu-card"
-            >
-                <div class="admin-menu-icon">
-                    ⏰
-                </div>
-                <div>
-                    <strong>
-                        Recertification Due
-                    </strong>
-                    <span>
-                        Competency yang sudah / akan habis masa berlakunya
-                    </span>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-6">
-            <a
-                href="competency_matrix.php"
-                class="admin-menu-card"
-            >
-                <div class="admin-menu-icon">
-                    🗂️
-                </div>
-                <div>
-                    <strong>
-                        Competency Matrix
-                    </strong>
-                    <span>
-                        Grid status competency seluruh karyawan
-                    </span>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-6">
-            <a
-                href="competency_gap.php"
-                class="admin-menu-card"
-            >
-                <div class="admin-menu-icon">
-                    🎯
-                </div>
-                <div>
-                    <strong>
-                        Competency Gap
-                    </strong>
-                    <span>
-                        Karyawan vs competency wajib untuk posisinya
-                    </span>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-6">
-            <a
-                href="position_requirements.php"
-                class="admin-menu-card"
-            >
-                <div class="admin-menu-icon">
-                    📌
-                </div>
-                <div>
-                    <strong>
-                        Required Competency
-                    </strong>
-                    <span>
-                        Atur competency wajib per posisi
-                    </span>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-6">
-            <a
-                href="qr_codes.php"
-                class="admin-menu-card"
-            >
-                <div class="admin-menu-icon">
-                    🔗
-                </div>
-                <div>
-                    <strong>
-                        QR Codes
-                    </strong>
-                    <span>
-                        Generate verification QR codes
-                    </span>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-6">
-            <a
-                href="signatories.php"
-                class="admin-menu-card"
-            >
-                <div class="admin-menu-icon">
-                    ✍️
-                </div>
-                <div>
-                    <strong>
-                        Signatories
-                    </strong>
-                    <span>
-                        Manage trainer &amp; manager digital signatures
-                    </span>
-                </div>
-            </a>
-        </div>
-        <?php if (admin_is_superadmin()): ?>
-            <div class="col-md-6">
-                <a
-                    href="admins.php"
-                    class="admin-menu-card"
-                >
-                    <div class="admin-menu-icon">
-                        🔐
-                    </div>
-                    <div>
-                        <strong>
-                            Admin Accounts
-                        </strong>
-                        <span>
-                            Kelola akun &amp; role admin
-                        </span>
-                    </div>
-                </a>
-            </div>
-        <?php endif; ?>
-    </div>
-</div>
+    </main>
 </div>
 </body>
 </html>

@@ -238,9 +238,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
     >
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link
         rel="stylesheet"
-        href="../assets/css/style.css"
+        href="../assets/css/style.css?v=<?php echo filemtime(__DIR__ . '/../assets/css/style.css'); ?>"
     >
 </head>
 <body class="admin-page">
@@ -260,10 +261,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ?>
         </span>
         <a href="logout.php">
-            Logout
+            <i class="bi bi-box-arrow-right"></i> Logout
         </a>
     </div>
 </nav>
+<div class="admin-layout">
+    <?php include "../includes/admin_sidebar.php"; ?>
+    <main class="admin-content">
 <div class="admin-container">
     <div class="page-header">
         <div>
@@ -431,5 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         preview.value = this.value !== '' ? 'BKT-' + this.value : '';
     });
 </script>
+</main>
+</div>
 </body>
 </html>

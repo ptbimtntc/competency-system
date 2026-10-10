@@ -1065,6 +1065,93 @@ body {
     background: rgba(255, 255, 255, .1);
 }
 
+/* LAYOUT: SIDEBAR + CONTENT */
+.admin-layout {
+    display: flex;
+    align-items: flex-start;
+}
+
+.admin-sidebar {
+    width: 230px;
+    min-width: 230px;
+    background: white;
+    border-right: 1px solid #e0e5eb;
+    min-height: calc(100vh - 62px);
+    padding: 16px 0;
+    position: sticky;
+    top: 62px;
+}
+
+.admin-sidebar a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 22px;
+    color: #44506a;
+    text-decoration: none;
+    font-size: 14px;
+    border-left: 3px solid transparent;
+}
+
+.admin-sidebar a i {
+    font-size: 16px;
+    width: 18px;
+    text-align: center;
+    color: #8a929d;
+}
+
+.admin-sidebar a:hover {
+    background: #f3f6fa;
+    color: #123f7d;
+}
+
+.admin-sidebar a.active {
+    background: #eaf1fb;
+    color: #123f7d;
+    border-left-color: #123f7d;
+    font-weight: 600;
+}
+
+.admin-sidebar a.active i {
+    color: #123f7d;
+}
+
+.admin-content {
+    flex: 1;
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .admin-layout {
+        flex-direction: column;
+    }
+
+    .admin-sidebar {
+        width: 100%;
+        min-width: 0;
+        min-height: auto;
+        position: static;
+        display: flex;
+        overflow-x: auto;
+        border-right: none;
+        border-bottom: 1px solid #e0e5eb;
+        padding: 8px;
+        gap: 4px;
+    }
+
+    .admin-sidebar a {
+        border-left: none;
+        border-bottom: 3px solid transparent;
+        padding: 8px 14px;
+        white-space: nowrap;
+    }
+
+    .admin-sidebar a.active {
+        border-left-color: transparent;
+        border-bottom-color: #123f7d;
+    }
+}
+
 /* CONTAINER */
 .admin-container {
     max-width: 1200px;
@@ -1095,12 +1182,16 @@ body {
     border-radius: 10px;
     padding: 20px;
     border: 1px solid #e0e5eb;
+    border-left: 4px solid #123f7d;
     box-shadow:
         0 2px 8px rgba(0, 0, 0, .04);
+    display: flex;
+    align-items: center;
+    gap: 14px;
 }
 
 .stat-card-link {
-    display: block;
+    display: flex;
     text-decoration: none;
     color: inherit;
     transition: transform .15s ease, box-shadow .15s ease;
@@ -1113,17 +1204,45 @@ body {
     color: inherit;
 }
 
+.stat-icon {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: #e8f2ff;
+    color: #123f7d;
+}
+
 .stat-label {
     color: #68717d;
     font-size: 12px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .stat-number {
     color: #123f7d;
-    font-size: 28px;
+    font-size: 26px;
     font-weight: bold;
+    line-height: 1;
 }
+
+.stat-card-success { border-left-color: #1a9c5a; }
+.stat-card-success .stat-icon { background: #e4f7ec; color: #1a9c5a; }
+.stat-card-success .stat-number { color: #1a9c5a; }
+
+.stat-card-danger { border-left-color: #d9414e; }
+.stat-card-danger .stat-icon { background: #fdeaec; color: #d9414e; }
+.stat-card-danger .stat-number { color: #d9414e; }
+
+.stat-card-warning { border-left-color: #e0a500; }
+.stat-card-warning .stat-icon { background: #fdf4df; color: #e0a500; }
+.stat-card-warning .stat-number { color: #b9860a; }
+
+.stat-card-primary { border-left-color: #123f7d; }
 
 /* MANAGEMENT */
 .admin-menu-section {
@@ -1158,13 +1277,21 @@ body {
 .admin-menu-icon {
     width: 48px;
     height: 48px;
+    min-width: 48px;
     border-radius: 9px;
     background: #e8f2ff;
+    color: #123f7d;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
+    font-size: 21px;
 }
+
+.admin-menu-icon-blue { background: #e8f2ff; color: #123f7d; }
+.admin-menu-icon-purple { background: #f1ebfd; color: #6b3fc9; }
+.admin-menu-icon-teal { background: #e1f5f2; color: #0d8c7a; }
+.admin-menu-icon-orange { background: #fdf0e3; color: #c9701a; }
+.admin-menu-icon-red { background: #fdeaec; color: #c9323f; }
 
 .admin-menu-card strong {
     display: block;
