@@ -18,7 +18,7 @@ function portal_count_by_status(mysqli $conn, string $status, ?array $scopeNiks)
         SELECT COUNT(*) AS total
         FROM employee_competencies ec
         INNER JOIN employees e ON e.id = ec.employee_id
-        WHERE ec.status = ? AND e.is_deleted = 0 {$scopeClause}
+        WHERE ec.status = ? AND ec.is_active = 1 AND e.is_deleted = 0 {$scopeClause}
     ";
     $stmt = mysqli_prepare($conn, $query);
     $types = "s" . str_repeat("s", count($scopeParams));
@@ -33,19 +33,31 @@ $totalExpired = portal_count_by_status($conn, 'EXPIRED', $scopeNiks);
 $totalAssigned = portal_count_by_status($conn, 'ASSIGNED', $scopeNiks);
 $totalFailed = portal_count_by_status($conn, 'FAILED', $scopeNiks);
 
+/* Daftar kompetensi untuk filter resume assignment/kehadiran & quiz */
+$resultCompetencyOptions = mysqli_query($conn, "SELECT id, name FROM competencies ORDER BY name ASC");
+$competencyOptions = [];
+while ($row = mysqli_fetch_assoc($resultCompetencyOptions)) {
+    $competencyOptions[] = $row;
+}
+$filterCompetencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
+
 /* Resume Assignment & Kehadiran Training (tim) */
 [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks);
+$competencyClause = $filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "";
+
 $queryAssignSummary = "
     SELECT
         COUNT(*) AS total_assigned,
         SUM(CASE WHEN ec.attendance_confirmed = 1 THEN 1 ELSE 0 END) AS total_attended
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE e.is_deleted = 0 AND ec.scheduled_training_date IS NOT NULL {$scopeClause}
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.scheduled_training_date IS NOT NULL {$scopeClause}{$competencyClause}
 ";
+$assignParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterCompetencyId]) : $scopeParams;
+$assignTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '');
 $assignStmt = mysqli_prepare($conn, $queryAssignSummary);
-if (!empty($scopeParams)) {
-    mysqli_stmt_bind_param($assignStmt, str_repeat('s', count($scopeParams)), ...$scopeParams);
+if (!empty($assignParams)) {
+    mysqli_stmt_bind_param($assignStmt, $assignTypes, ...$assignParams);
 }
 mysqli_stmt_execute($assignStmt);
 $assignSummary = mysqli_fetch_assoc(mysqli_stmt_get_result($assignStmt));
@@ -69,12 +81,14 @@ $queryQuizScores = "
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
-    WHERE e.is_deleted = 0 AND ec.quiz_submitted_at IS NOT NULL {$scopeClause}
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.quiz_submitted_at IS NOT NULL {$scopeClause}{$competencyClause}
     ORDER BY ec.quiz_submitted_at DESC
 ";
+$quizParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterCompetencyId]) : $scopeParams;
+$quizTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '');
 $quizStmt = mysqli_prepare($conn, $queryQuizScores);
-if (!empty($scopeParams)) {
-    mysqli_stmt_bind_param($quizStmt, str_repeat('s', count($scopeParams)), ...$scopeParams);
+if (!empty($quizParams)) {
+    mysqli_stmt_bind_param($quizStmt, $quizTypes, ...$quizParams);
 }
 mysqli_stmt_execute($quizStmt);
 $quizResult = mysqli_stmt_get_result($quizStmt);
@@ -172,9 +186,28 @@ $totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
                     </div>
                 </div>
 
-                <div class="dashboard-header mt-4">
+                <div class="dashboard-header mt-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
                     <div>
                         <h2 class="mb-0">Resume Assignment &amp; Kehadiran Training</h2>
+                        <p>Nilai Quiz per Karyawan di bawah juga ikut mengikuti filter ini.</p>
+                    </div>
+                    <div>
+                        <form method="GET" class="d-flex gap-2">
+                            <select name="competency_id" class="form-control" onchange="this.form.submit()">
+                                <option value="0"<?php echo $filterCompetencyId === 0 ? ' selected' : ''; ?>>
+                                    Semua Kompetensi
+                                </option>
+                                <?php foreach ($competencyOptions as $competencyOption): ?>
+                                    <option value="<?php echo $competencyOption['id']; ?>"
+                                        <?php echo $filterCompetencyId === (int) $competencyOption['id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($competencyOption['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <noscript>
+                                <button type="submit" class="btn btn-outline-primary">Filter</button>
+                            </noscript>
+                        </form>
                     </div>
                 </div>
                 <div class="row g-3">

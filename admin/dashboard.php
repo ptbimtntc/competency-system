@@ -40,7 +40,7 @@ $queryValid = "
     SELECT COUNT(*) AS total
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE ec.status = 'VALID' AND e.is_deleted = 0
+    WHERE ec.status = 'VALID' AND ec.is_active = 1 AND e.is_deleted = 0
 ";
 $resultValid =
     mysqli_query(
@@ -56,7 +56,7 @@ $queryExpired = "
     SELECT COUNT(*) AS total
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE ec.status = 'EXPIRED' AND e.is_deleted = 0
+    WHERE ec.status = 'EXPIRED' AND ec.is_active = 1 AND e.is_deleted = 0
 ";
 $resultExpired =
     mysqli_query(
@@ -72,7 +72,7 @@ $queryAssigned = "
     SELECT COUNT(*) AS total
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE ec.status = 'ASSIGNED' AND e.is_deleted = 0
+    WHERE ec.status = 'ASSIGNED' AND ec.is_active = 1 AND e.is_deleted = 0
 ";
 $resultAssigned =
     mysqli_query(
@@ -88,7 +88,7 @@ $queryFailed = "
     SELECT COUNT(*) AS total
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE ec.status = 'FAILED' AND e.is_deleted = 0
+    WHERE ec.status = 'FAILED' AND ec.is_active = 1 AND e.is_deleted = 0
 ";
 $resultFailed =
     mysqli_query(
@@ -99,6 +99,14 @@ $totalFailed =
     mysqli_fetch_assoc(
         $resultFailed
     )['total'];
+/* Daftar kompetensi untuk filter resume assignment/kehadiran & quiz */
+$resultCompetencyOptions = mysqli_query($conn, "SELECT id, name FROM competencies ORDER BY name ASC");
+$competencyOptions = [];
+while ($row = mysqli_fetch_assoc($resultCompetencyOptions)) {
+    $competencyOptions[] = $row;
+}
+$filterCompetencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
+
 /* Resume Assignment & Kehadiran Training */
 $queryAssignSummary = "
     SELECT
@@ -106,14 +114,14 @@ $queryAssignSummary = "
         SUM(CASE WHEN ec.attendance_confirmed = 1 THEN 1 ELSE 0 END) AS total_attended
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE e.is_deleted = 0 AND ec.scheduled_training_date IS NOT NULL
-";
-$resultAssignSummary =
-    mysqli_query(
-        $conn,
-        $queryAssignSummary
-    );
-$assignSummary = mysqli_fetch_assoc($resultAssignSummary);
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.scheduled_training_date IS NOT NULL
+" . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "");
+$resultAssignSummaryStmt = mysqli_prepare($conn, $queryAssignSummary);
+if ($filterCompetencyId > 0) {
+    mysqli_stmt_bind_param($resultAssignSummaryStmt, "i", $filterCompetencyId);
+}
+mysqli_stmt_execute($resultAssignSummaryStmt);
+$assignSummary = mysqli_fetch_assoc(mysqli_stmt_get_result($resultAssignSummaryStmt));
 $totalAssignedAll = (int) $assignSummary['total_assigned'];
 $totalAttended = (int) $assignSummary['total_attended'];
 $totalNotAttended = $totalAssignedAll - $totalAttended;
@@ -133,16 +141,18 @@ $queryQuizScores = "
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
-    WHERE e.is_deleted = 0 AND ec.quiz_submitted_at IS NOT NULL
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.quiz_submitted_at IS NOT NULL
+" . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "") . "
     ORDER BY ec.quiz_submitted_at DESC
 ";
-$resultQuizScores =
-    mysqli_query(
-        $conn,
-        $queryQuizScores
-    );
+$resultQuizScoresStmt = mysqli_prepare($conn, $queryQuizScores);
+if ($filterCompetencyId > 0) {
+    mysqli_stmt_bind_param($resultQuizScoresStmt, "i", $filterCompetencyId);
+}
+mysqli_stmt_execute($resultQuizScoresStmt);
+$quizResult = mysqli_stmt_get_result($resultQuizScoresStmt);
 $quizScores = [];
-while ($row = mysqli_fetch_assoc($resultQuizScores)) {
+while ($row = mysqli_fetch_assoc($quizResult)) {
     $quizScores[] = $row;
 }
 $totalQuizTaken = count($quizScores);
@@ -268,11 +278,32 @@ $totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
     </div>
 </div>
 
-    <div class="dashboard-header mt-4">
+    <div class="dashboard-header mt-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
             <h2 class="mb-0">
                 Resume Assignment &amp; Kehadiran Training
             </h2>
+            <p>
+                Nilai Quiz per Karyawan di bawah juga ikut mengikuti filter ini.
+            </p>
+        </div>
+        <div>
+            <form method="GET" class="d-flex gap-2">
+                <select name="competency_id" class="form-control" onchange="this.form.submit()">
+                    <option value="0"<?php echo $filterCompetencyId === 0 ? ' selected' : ''; ?>>
+                        Semua Kompetensi
+                    </option>
+                    <?php foreach ($competencyOptions as $competencyOption): ?>
+                        <option value="<?php echo $competencyOption['id']; ?>"
+                            <?php echo $filterCompetencyId === (int) $competencyOption['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($competencyOption['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <noscript>
+                    <button type="submit" class="btn btn-outline-primary">Filter</button>
+                </noscript>
+            </form>
         </div>
     </div>
     <div class="row g-3">
