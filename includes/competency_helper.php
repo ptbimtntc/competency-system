@@ -257,7 +257,7 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
 {
     $stmt = mysqli_prepare(
         $conn,
-        "SELECT scheduled_training_date, status, notes FROM employee_competencies WHERE id = ? LIMIT 1"
+        "SELECT status, notes FROM employee_competencies WHERE id = ? LIMIT 1"
     );
     mysqli_stmt_bind_param($stmt, "i", $employeeCompetencyId);
     mysqli_stmt_execute($stmt);
@@ -266,7 +266,15 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
         return false;
     }
 
-    $newStatus = calculateCompetencyStatusWithSchedule(null, null, $data['scheduled_training_date'], null);
+    /*
+    | scheduled_training_date dipaksa ke hari ini & attendance_confirmed
+    | dipaksa 1 -- karyawan yang direset dianggap training ulang (dan
+    | hadir) hari ini, bukan memakai jadwal training lama yang mungkin
+    | sudah lewat atau kosong (yang kalau dibiarkan bikin status jatuh ke
+    | NOT_TAKEN alih-alih ASSIGNED).
+    */
+    $todayDate = (new DateTime())->format('Y-m-d');
+    $newStatus = calculateCompetencyStatusWithSchedule(null, null, $todayDate, null);
     $retryUntil = $retryWindowHours > 0
         ? (new DateTime())->modify("+{$retryWindowHours} hours")->format('Y-m-d H:i:s')
         : null;
@@ -300,12 +308,14 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
                 expiry_date = NULL,
                 certificate_number = NULL,
                 score = NULL,
+                scheduled_training_date = ?,
+                attendance_confirmed = 1,
                 status = ?,
                 quiz_retry_until = ?,
                 notes = ?
             WHERE id = ?"
         );
-        mysqli_stmt_bind_param($updateStmt, "sssi", $newStatus, $retryUntil, $notes, $employeeCompetencyId);
+        mysqli_stmt_bind_param($updateStmt, "ssssi", $todayDate, $newStatus, $retryUntil, $notes, $employeeCompetencyId);
         mysqli_stmt_execute($updateStmt);
 
         mysqli_commit($conn);

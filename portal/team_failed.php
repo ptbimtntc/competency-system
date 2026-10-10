@@ -129,19 +129,35 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                 </div>
 
                 <div class="employee-table-card">
+                    <?php $canReset = portal_can_execute('dashboard'); ?>
+                    <?php if ($canReset): ?>
+                        <form method="POST" action="employee_competency_quiz_retry_bulk.php" id="bulkResetForm"
+                            onsubmit="return confirm('Reset status karyawan terpilih dari Failed ke Assigned? Mereka akan dianggap hadir training kembali hari ini dan bisa mengerjakan kuis ulang sebagai training kedua dalam 1 jam ke depan.');">
+                            <?php echo csrf_input(); ?>
+                            <input type="hidden" name="back" value="<?php echo htmlspecialchars($backUrl); ?>">
+                    <?php endif; ?>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
+                                    <?php if ($canReset): ?>
+                                        <th width="40">
+                                            <input type="checkbox" class="form-check-input" id="selectAllFailed">
+                                        </th>
+                                    <?php endif; ?>
                                     <th>NIK</th><th>Employee</th><th>Department</th>
                                     <th>Competency</th><th>Score</th><th>KKM</th><th>Training Date</th>
-                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (count($rows) > 0): ?>
                                     <?php foreach ($rows as $row): ?>
                                         <tr>
+                                            <?php if ($canReset): ?>
+                                                <td>
+                                                    <input type="checkbox" class="form-check-input reset-select" name="reset_ids[]" value="<?php echo $row['id']; ?>">
+                                                </td>
+                                            <?php endif; ?>
                                             <td><?php echo htmlspecialchars($row['nik']); ?></td>
                                             <td><strong><?php echo htmlspecialchars($row['employee_name']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($row['department'] ?? '-'); ?></td>
@@ -155,25 +171,10 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                                     : date('d M Y', strtotime($row['training_date']));
                                                 ?>
                                             </td>
-                                            <td>
-                                                <?php if (portal_can_execute('dashboard')): ?>
-                                                    <form method="POST" action="employee_competency_quiz_retry.php" class="d-inline"
-                                                        onsubmit="return confirm('Reset status <?php echo htmlspecialchars(addslashes($row['employee_name']), ENT_QUOTES); ?> dari Failed ke Assigned? Karyawan akan dianggap hadir training kembali dan bisa mengerjakan kuis ulang sebagai training kedua dalam 1 jam ke depan.');">
-                                                        <?php echo csrf_input(); ?>
-                                                        <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
-                                                        <input type="hidden" name="back" value="<?php echo htmlspecialchars($backUrl); ?>">
-                                                        <button type="submit" class="btn btn-sm btn-outline-warning">
-                                                            Reset ke Assigned
-                                                        </button>
-                                                    </form>
-                                                <?php else: ?>
-                                                    &mdash;
-                                                <?php endif; ?>
-                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="8" class="text-center py-5">Tidak ada data untuk filter ini.</td></tr>
+                                    <tr><td colspan="<?php echo $canReset ? 8 : 7; ?>" class="text-center py-5">Tidak ada data untuk filter ini.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -188,10 +189,33 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             <?php echo render_pagination($pg, $paginationBaseParams); ?>
                         </div>
                     <?php endif; ?>
+                    <?php if ($canReset): ?>
+                        <?php if (count($rows) > 0): ?>
+                            <div class="p-4 border-top">
+                                <button type="submit" class="btn btn-warning">
+                                    Reset ke Assigned (Terpilih)
+                                </button>
+                            </div>
+                        <?php endif; ?>
+                        </form>
+                    <?php endif; ?>
                 </div>
             </div>
         </main>
     </div>
+    <?php if ($canReset): ?>
+        <script>
+            (function () {
+                var selectAll = document.getElementById('selectAllFailed');
+                var checkboxes = document.querySelectorAll('.reset-select');
+                selectAll?.addEventListener('change', function () {
+                    checkboxes.forEach(function (cb) {
+                        cb.checked = selectAll.checked;
+                    });
+                });
+            })();
+        </script>
+    <?php endif; ?>
 </body>
 
 </html>

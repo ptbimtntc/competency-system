@@ -282,10 +282,18 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                 </div>
             </form>
         </div>
+        <?php $canResetFailed = $status === 'FAILED' && admin_can_write(); ?>
         <div class="employee-table-card">
             <?php if ($status === 'ASSIGNED'): ?>
                 <form method="POST" action="confirm_attendance_bulk.php" id="bulkAttendanceForm">
                     <?php echo csrf_input(); ?>
+            <?php elseif ($canResetFailed): ?>
+                <form method="POST" action="employee_competency_quiz_retry_bulk.php" id="bulkResetForm"
+                    onsubmit="return confirm('Reset status karyawan terpilih dari Failed ke Assigned? Mereka akan dianggap hadir training kembali hari ini dan bisa mengerjakan kuis ulang sebagai training kedua dalam 1 jam ke depan.');">
+                    <?php echo csrf_input(); ?>
+                    <input type="hidden" name="back" value="<?php
+                        echo htmlspecialchars('competency_status.php?' . buildStatusFilterQuery($status));
+                        ?>">
             <?php endif; ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -294,6 +302,10 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                             <?php if ($status === 'ASSIGNED'): ?>
                                 <th width="40">
                                     <input type="checkbox" class="form-check-input" id="selectAllAssigned">
+                                </th>
+                            <?php elseif ($canResetFailed): ?>
+                                <th width="40">
+                                    <input type="checkbox" class="form-check-input" id="selectAllFailed">
                                 </th>
                             <?php endif; ?>
                             <th>
@@ -339,6 +351,10 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                                             <?php else: ?>
                                                 <input type="checkbox" class="form-check-input attendance-select" name="confirm_ids[]" value="<?php echo (int) $row['id']; ?>">
                                             <?php endif; ?>
+                                        </td>
+                                    <?php elseif ($canResetFailed): ?>
+                                        <td>
+                                            <input type="checkbox" class="form-check-input reset-select" name="reset_ids[]" value="<?php echo (int) $row['id']; ?>">
                                         </td>
                                     <?php endif; ?>
                                     <td>
@@ -405,31 +421,18 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                                             <?php echo htmlspecialchars(competencyStatusLabel($status)); ?>
                                         </span>
                                     </td>
-                                    <td class="d-flex gap-2">
+                                    <td>
                                         <a href="employee_competency_edit.php?id=<?php echo $row['id']; ?>&back=<?php
                                             echo urlencode('competency_status.php?' . buildStatusFilterQuery($status));
                                             ?>" class="btn btn-sm btn-outline-primary">
                                             Detail
                                         </a>
-                                        <?php if ($status === 'FAILED' && admin_can_write()): ?>
-                                            <form method="POST" action="employee_competency_quiz_retry.php" class="d-inline"
-                                                onsubmit="return confirm('Reset status <?php echo htmlspecialchars(addslashes($row['employee_name']), ENT_QUOTES); ?> dari Failed ke Assigned? Karyawan akan dianggap hadir training kembali dan bisa mengerjakan kuis ulang sebagai training kedua dalam 1 jam ke depan.');">
-                                                <?php echo csrf_input(); ?>
-                                                <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
-                                                <input type="hidden" name="back" value="<?php
-                                                    echo htmlspecialchars('competency_status.php?' . buildStatusFilterQuery($status));
-                                                    ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-warning">
-                                                    Reset ke Assigned
-                                                </button>
-                                            </form>
-                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="<?php echo $status === 'ASSIGNED' ? 11 : 10; ?>" class="text-center py-5">
+                                <td colspan="<?php echo ($status === 'ASSIGNED' || $canResetFailed) ? 11 : 10; ?>" class="text-center py-5">
                                     Tidak ada data competency dengan status ini.
                                 </td>
                             </tr>
@@ -456,6 +459,15 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                     </div>
                 <?php endif; ?>
                 </form>
+            <?php elseif ($canResetFailed): ?>
+                <?php if (mysqli_num_rows($result) > 0): ?>
+                    <div class="p-4 border-top">
+                        <button type="submit" class="btn btn-warning">
+                            Reset ke Assigned (Terpilih)
+                        </button>
+                    </div>
+                <?php endif; ?>
+                </form>
             <?php endif; ?>
         </div>
     </div>
@@ -464,6 +476,18 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
             (function () {
                 var selectAll = document.getElementById('selectAllAssigned');
                 var checkboxes = document.querySelectorAll('.attendance-select');
+                selectAll?.addEventListener('change', function () {
+                    checkboxes.forEach(function (cb) {
+                        cb.checked = selectAll.checked;
+                    });
+                });
+            })();
+        </script>
+    <?php elseif ($canResetFailed): ?>
+        <script>
+            (function () {
+                var selectAll = document.getElementById('selectAllFailed');
+                var checkboxes = document.querySelectorAll('.reset-select');
                 selectAll?.addEventListener('change', function () {
                     checkboxes.forEach(function (cb) {
                         cb.checked = selectAll.checked;
