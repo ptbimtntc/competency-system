@@ -129,15 +129,21 @@ $attendancePercentage = $totalAssignedAll > 0
     ? round($totalAttended / $totalAssignedAll * 100, 1)
     : 0;
 /* Nilai Quiz per Karyawan */
+$quizStatusFilter = isset($_GET['quiz_status']) ? trim($_GET['quiz_status']) : '';
+if (!in_array($quizStatusFilter, ['passed', 'failed'], true)) {
+    $quizStatusFilter = '';
+}
 $queryQuizScores = "
     SELECT
+        ec.id,
         e.nik,
         e.name AS employee_name,
         c.name AS competency_name,
         ec.score,
         c.passing_score,
         ec.status,
-        ec.quiz_submitted_at
+        ec.quiz_submitted_at,
+        ec.quiz_retry_until
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
@@ -158,6 +164,16 @@ while ($row = mysqli_fetch_assoc($quizResult)) {
 $totalQuizTaken = count($quizScores);
 $totalQuizPassed = count(array_filter($quizScores, fn($r) => $r['status'] !== 'FAILED'));
 $totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
+$displayedQuizScores = array_filter($quizScores, function ($r) use ($quizStatusFilter) {
+    if ($quizStatusFilter === 'passed') {
+        return $r['status'] !== 'FAILED';
+    }
+    if ($quizStatusFilter === 'failed') {
+        return $r['status'] === 'FAILED';
+    }
+    return true;
+});
+$quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -289,6 +305,9 @@ $totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
         </div>
         <div>
             <form method="GET" class="d-flex gap-2">
+                <?php if ($quizStatusFilter !== ''): ?>
+                    <input type="hidden" name="quiz_status" value="<?php echo htmlspecialchars($quizStatusFilter); ?>">
+                <?php endif; ?>
                 <select name="competency_id" class="form-control" onchange="this.form.submit()">
                     <option value="0"<?php echo $filterCompetencyId === 0 ? ' selected' : ''; ?>>
                         Semua Kompetensi
@@ -359,7 +378,7 @@ $totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
         </div>
     </div>
 
-    <div class="dashboard-header mt-4">
+    <div class="dashboard-header mt-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
             <h2 class="mb-0">
                 Nilai Quiz per Karyawan
@@ -370,7 +389,28 @@ $totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
                 <span class="text-danger"><?php echo $totalQuizFailed; ?> Gagal</span>
             </p>
         </div>
+        <div>
+            <form method="GET" class="d-flex gap-2">
+                <?php if ($filterCompetencyId > 0): ?>
+                    <input type="hidden" name="competency_id" value="<?php echo $filterCompetencyId; ?>">
+                <?php endif; ?>
+                <select name="quiz_status" class="form-control" onchange="this.form.submit()">
+                    <option value=""<?php echo $quizStatusFilter === '' ? ' selected' : ''; ?>>Semua</option>
+                    <option value="passed"<?php echo $quizStatusFilter === 'passed' ? ' selected' : ''; ?>>
+                        Lulus
+                    </option>
+                    <option value="failed"<?php echo $quizStatusFilter === 'failed' ? ' selected' : ''; ?>>
+                        Gagal
+                    </option>
+                </select>
+            </form>
+        </div>
     </div>
+    <?php if ($quizRetrySuccess): ?>
+        <div class="alert alert-success">
+            Kuis berhasil direset. Karyawan bisa mengerjakan ulang dalam 1 jam ke depan, setelah itu terkunci lagi.
+        </div>
+    <?php endif; ?>
     <div class="card">
         <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
             <table class="table table-hover align-middle mb-0">
@@ -383,12 +423,17 @@ $totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
                         <th>KKM</th>
                         <th>Status</th>
                         <th>Tanggal Submit</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (count($quizScores) > 0): ?>
-                        <?php foreach ($quizScores as $quizRow): ?>
-                            <?php $isPassed = $quizRow['status'] !== 'FAILED'; ?>
+                    <?php if (count($displayedQuizScores) > 0): ?>
+                        <?php foreach ($displayedQuizScores as $quizRow): ?>
+                            <?php
+                            $isPassed = $quizRow['status'] !== 'FAILED';
+                            $retryUntil = $quizRow['quiz_retry_until'] ?? null;
+                            $retryActive = !empty($retryUntil) && strtotime($retryUntil) >= time();
+                            ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($quizRow['nik']); ?></td>
                                 <td><strong><?php echo htmlspecialchars($quizRow['employee_name']); ?></strong></td>
@@ -401,11 +446,31 @@ $totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
                                     </span>
                                 </td>
                                 <td><?php echo date('d M Y', strtotime($quizRow['quiz_submitted_at'])); ?></td>
+                                <td>
+                                    <?php if (!$isPassed && admin_can_write()): ?>
+                                        <?php if ($retryActive): ?>
+                                            <span class="badge text-bg-warning">
+                                                Bisa dikerjakan ulang s.d. <?php echo date('H:i', strtotime($retryUntil)); ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <form method="POST" action="employee_competency_quiz_retry.php" class="d-inline"
+                                                onsubmit="return confirm('Reset kuis supaya <?php echo htmlspecialchars(addslashes($quizRow['employee_name']), ENT_QUOTES); ?> bisa mengerjakan ulang dalam 1 jam ke depan?');">
+                                                <?php echo csrf_input(); ?>
+                                                <input type="hidden" name="id" value="<?php echo $quizRow['id']; ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-warning">
+                                                    Reset Quiz
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        &mdash;
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="7" class="text-center py-4">
+                            <td colspan="8" class="text-center py-4">
                                 Belum ada karyawan yang mengerjakan quiz.
                             </td>
                         </tr>

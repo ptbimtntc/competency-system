@@ -14,8 +14,8 @@ if (isset($_GET['template'])) {
     header("Content-Disposition: attachment; filename=employees_import_template.csv");
     $templateOutput = fopen('php://output', 'w');
     fputs($templateOutput, "\xEF\xBB\xBF");
-    fputcsv($templateOutput, ['nik', 'name', 'department', 'position', 'supervisor', 'team']);
-    fputcsv($templateOutput, ['12345', 'Budi Santoso', 'Maintenance', 'Technician', 'Andi Wijaya', 'A']);
+    fputcsv($templateOutput, ['nik', 'name', 'department', 'position', 'supervisor', 'supervisor_nik', 'team']);
+    fputcsv($templateOutput, ['12345', 'Budi Santoso', 'Maintenance', 'Technician', 'Andi Wijaya', '10001', 'A']);
     fclose($templateOutput);
     exit;
 }
@@ -88,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $department = $getColumn('department');
                                 $position = $getColumn('position');
                                 $supervisor = $getColumn('supervisor');
+                                $supervisorNik = $getColumn('supervisor_nik');
                                 $team = strtoupper($getColumn('team'));
 
                                 if ($nik === '' || $name === '' || $department === '' || $position === '') {
@@ -98,8 +99,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $skipped[] = "Baris {$rowNumber}: Team '{$team}' tidak valid (harus A/B/C/D/NS).";
                                     continue;
                                 }
+                                if ($supervisorNik !== '' && $supervisorNik === $nik) {
+                                    $skipped[] = "Baris {$rowNumber}: Karyawan tidak bisa menjadi supervisor untuk dirinya sendiri.";
+                                    continue;
+                                }
                                 $teamValue = $team !== '' ? $team : null;
                                 $supervisorValue = $supervisor !== '' ? $supervisor : null;
+                                $supervisorNikValue = $supervisorNik !== '' ? $supervisorNik : null;
                                 $licenseId = 'BKT-' . $nik;
 
                                 $checkStmt = mysqli_prepare($conn, "SELECT id FROM employees WHERE nik = ? LIMIT 1");
@@ -111,17 +117,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $updateStmt = mysqli_prepare(
                                         $conn,
                                         "UPDATE employees
-                                        SET name = ?, department = ?, position = ?, supervisor = ?, team = ?, license_id = ?,
+                                        SET name = ?, department = ?, position = ?, supervisor = ?, supervisor_nik = ?, team = ?, license_id = ?,
                                             is_deleted = 0, deleted_at = NULL
                                         WHERE id = ?"
                                     );
                                     mysqli_stmt_bind_param(
                                         $updateStmt,
-                                        "ssssssi",
+                                        "sssssssi",
                                         $name,
                                         $department,
                                         $position,
                                         $supervisorValue,
+                                        $supervisorNikValue,
                                         $teamValue,
                                         $licenseId,
                                         $existing['id']
@@ -131,17 +138,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 } else {
                                     $insertStmt = mysqli_prepare(
                                         $conn,
-                                        "INSERT INTO employees (nik, name, department, position, supervisor, team, license_id)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?)"
+                                        "INSERT INTO employees (nik, name, department, position, supervisor, supervisor_nik, team, license_id)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
                                     );
                                     mysqli_stmt_bind_param(
                                         $insertStmt,
-                                        "sssssss",
+                                        "ssssssss",
                                         $nik,
                                         $name,
                                         $department,
                                         $position,
                                         $supervisorValue,
+                                        $supervisorNikValue,
                                         $teamValue,
                                         $licenseId
                                     );
@@ -244,9 +252,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </h5>
             <p class="text-muted">
                 Kolom wajib: <code>nik</code>, <code>name</code>, <code>department</code>, <code>position</code>.
-                Kolom opsional: <code>supervisor</code>, <code>team</code> (A/B/C/D/NS).
+                Kolom opsional: <code>supervisor</code> (nama atasan, teks bebas), <code>supervisor_nik</code>
+                (NIK atasan di sistem &mdash; dipakai untuk menentukan hak akses supervisor di portal karyawan),
+                <code>team</code> (A/B/C/D/NS).
                 Data dicocokkan berdasarkan NIK &mdash; kalau NIK sudah terdaftar, datanya akan diperbarui;
                 kalau belum, akan dibuat karyawan baru. License ID otomatis mengikuti format BKT-&lt;NIK&gt;.
+                Karyawan yang NIK-nya muncul sebagai <code>supervisor_nik</code> milik karyawan lain akan otomatis
+                mendapat akses supervisor di portal.
             </p>
             <a href="employees_import.php?template=1" class="btn btn-sm btn-outline-secondary mb-4">
                 Download Template CSV

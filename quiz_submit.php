@@ -25,6 +25,7 @@ try {
             ec.scheduled_training_date,
             ec.attendance_confirmed,
             ec.quiz_submitted_at,
+            ec.quiz_retry_until,
             c.validity_months,
             c.passing_score
         FROM employee_competencies ec

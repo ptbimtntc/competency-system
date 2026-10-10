@@ -171,10 +171,16 @@ function applyPassingScoreGate(string $status, ?int $score, ?int $passing_score)
 |--------------------------------------------------------------------------
 |
 | $ec harus berisi: competency_id, scheduled_training_date,
-| attendance_confirmed, quiz_submitted_at.
+| attendance_confirmed, quiz_submitted_at, quiz_retry_until.
 |
 | Dipakai bersama oleh employee.php, quiz.php, dan quiz_submit.php supaya
 | aturan gating-nya tidak beda-beda di tiap halaman.
+|
+| quiz_retry_until (diisi oleh resetEmployeeCompetencyQuiz saat admin/
+| supervisor mereset kuis karyawan yang gagal) membuka jendela pengerjaan
+| ulang yang tidak terikat tanggal training asli -- tapi dibatasi durasi
+| (default 1 jam dari saat direset). Begitu waktunya lewat, kuis terkunci
+| lagi sampai direset ulang.
 |
 */
 function getQuizEligibility(mysqli $conn, array $ec): array
@@ -188,11 +194,21 @@ function getQuizEligibility(mysqli $conn, array $ec): array
     if ((int) ($ec['attendance_confirmed'] ?? 0) !== 1) {
         return ['eligible' => false, 'reason' => 'not_confirmed'];
     }
-    $today = (new DateTime())->format('Y-m-d');
-    $scheduled = (new DateTime($ec['scheduled_training_date']))->format('Y-m-d');
-    if ($today !== $scheduled) {
-        return ['eligible' => false, 'reason' => 'wrong_date'];
+
+    $retryUntil = $ec['quiz_retry_until'] ?? null;
+    $retryWindowActive = !empty($retryUntil) && new DateTime($retryUntil) >= new DateTime();
+
+    if (!$retryWindowActive) {
+        if (!empty($retryUntil)) {
+            return ['eligible' => false, 'reason' => 'retry_expired'];
+        }
+        $today = (new DateTime())->format('Y-m-d');
+        $scheduled = (new DateTime($ec['scheduled_training_date']))->format('Y-m-d');
+        if ($today !== $scheduled) {
+            return ['eligible' => false, 'reason' => 'wrong_date'];
+        }
     }
+
     $countStmt = mysqli_prepare(
         $conn,
         "SELECT COUNT(*) AS total FROM competency_questions WHERE competency_id = ?"
@@ -203,7 +219,7 @@ function getQuizEligibility(mysqli $conn, array $ec): array
     if ($total === 0) {
         return ['eligible' => false, 'reason' => 'no_questions'];
     }
-    return ['eligible' => true, 'reason' => 'ok'];
+    return ['eligible' => true, 'reason' => 'ok', 'retry_until' => $retryWindowActive ? $retryUntil : null];
 }
 /*
 |--------------------------------------------------------------------------
@@ -218,9 +234,73 @@ function quizEligibilityMessage(string $reason, ?string $scheduledTrainingDate =
         'not_confirmed' => 'Kehadiran Anda pada training ini belum dikonfirmasi oleh admin.',
         'wrong_date' => 'Kuis hanya dapat dikerjakan tepat pada tanggal training: '
             . (!empty($scheduledTrainingDate) ? date('d M Y', strtotime($scheduledTrainingDate)) : '-') . '.',
+        'retry_expired' => 'Waktu pengerjaan ulang kuis (1 jam) sudah habis. Minta admin/atasan untuk mereset ulang.',
         'no_questions' => 'Soal kuis untuk kompetensi ini belum tersedia.',
         default => 'Kuis belum dapat dikerjakan saat ini.',
     };
+}
+/*
+|--------------------------------------------------------------------------
+| Reset kuis supaya karyawan bisa mengerjakan ulang
+|--------------------------------------------------------------------------
+|
+| Menghapus jawaban & hasil kuis sebelumnya, mengembalikan status ke
+| ASSIGNED, dan (kalau $retryWindowHours > 0) membuka jendela waktu
+| pengerjaan ulang selama N jam dari sekarang -- tidak terikat tanggal
+| training asli, supaya karyawan yang gagal bisa langsung mengerjakan
+| ulang kuisnya tanpa menunggu sesi training baru. Dipakai bersama oleh
+| admin/employee_competency_quiz_retry.php dan
+| portal/employee_competency_quiz_retry.php.
+|
+*/
+function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, int $retryWindowHours = 0): bool
+{
+    $stmt = mysqli_prepare(
+        $conn,
+        "SELECT scheduled_training_date FROM employee_competencies WHERE id = ? LIMIT 1"
+    );
+    mysqli_stmt_bind_param($stmt, "i", $employeeCompetencyId);
+    mysqli_stmt_execute($stmt);
+    $data = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    if (!$data) {
+        return false;
+    }
+
+    $newStatus = calculateCompetencyStatusWithSchedule(null, null, $data['scheduled_training_date'], null);
+    $retryUntil = $retryWindowHours > 0
+        ? (new DateTime())->modify("+{$retryWindowHours} hours")->format('Y-m-d H:i:s')
+        : null;
+
+    mysqli_begin_transaction($conn);
+    try {
+        $deleteStmt = mysqli_prepare(
+            $conn,
+            "DELETE FROM employee_quiz_answers WHERE employee_competency_id = ?"
+        );
+        mysqli_stmt_bind_param($deleteStmt, "i", $employeeCompetencyId);
+        mysqli_stmt_execute($deleteStmt);
+
+        $updateStmt = mysqli_prepare(
+            $conn,
+            "UPDATE employee_competencies
+            SET quiz_submitted_at = NULL,
+                training_date = NULL,
+                expiry_date = NULL,
+                certificate_number = NULL,
+                score = NULL,
+                status = ?,
+                quiz_retry_until = ?
+            WHERE id = ?"
+        );
+        mysqli_stmt_bind_param($updateStmt, "ssi", $newStatus, $retryUntil, $employeeCompetencyId);
+        mysqli_stmt_execute($updateStmt);
+
+        mysqli_commit($conn);
+        return true;
+    } catch (\Throwable $e) {
+        mysqli_rollback($conn);
+        return false;
+    }
 }
 /*
 |--------------------------------------------------------------------------

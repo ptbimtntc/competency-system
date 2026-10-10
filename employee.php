@@ -42,6 +42,7 @@ $query = "
         ec.scheduled_training_date,
         ec.attendance_confirmed,
         ec.quiz_submitted_at,
+        ec.quiz_retry_until,
 
         e.id AS employee_id,
         e.nik,

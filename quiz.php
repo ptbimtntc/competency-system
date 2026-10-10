@@ -19,6 +19,7 @@ $query = "
         ec.scheduled_training_date,
         ec.attendance_confirmed,
         ec.quiz_submitted_at,
+        ec.quiz_retry_until,
         e.nik,
         e.name AS employee_name,
         c.name AS competency_name
@@ -119,6 +120,12 @@ $submitError = isset($_GET['error']) && $_GET['error'] === '1';
                         ?>
                     </div>
                 <?php else: ?>
+                    <?php if (!empty($eligibility['retry_until'])): ?>
+                        <div class="alert alert-warning" id="retryCountdownAlert">
+                            Ini adalah kesempatan mengerjakan ulang. Sisa waktu:
+                            <strong id="retryCountdownText">--:--</strong>
+                        </div>
+                    <?php endif; ?>
                     <form method="POST" action="quiz_submit.php" id="quizForm">
                         <input type="hidden" name="id" value="<?php echo $id; ?>">
                         <?php foreach ($questions as $index => $question): ?>
@@ -145,11 +152,45 @@ $submitError = isset($_GET['error']) && $_GET['error'] === '1';
                                 <?php endforeach; ?>
                             </div>
                         <?php endforeach; ?>
-                        <button type="submit" class="btn btn-primary w-100"
+                        <button type="submit" class="btn btn-primary w-100" id="quizSubmitBtn"
                             onclick="return confirm('Jawaban tidak dapat diubah setelah dikirim. Lanjutkan?');">
                             Kirim Jawaban
                         </button>
                     </form>
+                    <?php if (!empty($eligibility['retry_until'])): ?>
+                        <script>
+                            (function () {
+                                var expiresAt = new Date(<?php echo json_encode($eligibility['retry_until']); ?>.replace(' ', 'T')).getTime();
+                                var countdownText = document.getElementById('retryCountdownText');
+                                var form = document.getElementById('quizForm');
+                                var submitBtn = document.getElementById('quizSubmitBtn');
+
+                                function lockQuiz() {
+                                    form.querySelectorAll('input').forEach(function (el) { el.disabled = true; });
+                                    submitBtn.disabled = true;
+                                    submitBtn.textContent = 'Waktu Habis';
+                                    document.getElementById('retryCountdownAlert').className = 'alert alert-danger';
+                                    countdownText.textContent = 'waktu habis, kuis terkunci. Minta admin/atasan reset ulang.';
+                                }
+
+                                function tick() {
+                                    var remaining = expiresAt - Date.now();
+                                    if (remaining <= 0) {
+                                        lockQuiz();
+                                        clearInterval(timer);
+                                        return;
+                                    }
+                                    var minutes = Math.floor(remaining / 60000);
+                                    var seconds = Math.floor((remaining % 60000) / 1000);
+                                    countdownText.textContent =
+                                        String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+                                }
+
+                                tick();
+                                var timer = setInterval(tick, 1000);
+                            })();
+                        </script>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>
