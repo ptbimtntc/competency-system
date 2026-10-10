@@ -21,7 +21,24 @@ function parseImportDate(string $value)
     if ($value === '') {
         return null;
     }
-    foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'Y/m/d', 'm/d/Y'] as $format) {
+    /*
+    | Setiap format dipasangkan dengan regex penjaga supaya tidak salah
+    | tebak format lain yang kebetulan numerically valid juga (mis. tahun
+    | 2 digit "26" pada "28-07-26" jangan sampai kebaca sebagai Y-m-d
+    | dengan tahun literal 26 Masehi).
+    */
+    $formats = [
+        '/^\d{4}-\d{1,2}-\d{1,2}$/' => 'Y-m-d',
+        '/^\d{4}\/\d{1,2}\/\d{1,2}$/' => 'Y/m/d',
+        '/^\d{1,2}\/\d{1,2}\/\d{4}$/' => 'd/m/Y',
+        '/^\d{1,2}-\d{1,2}-\d{4}$/' => 'd-m-Y',
+        '/^\d{1,2}\/\d{1,2}\/\d{2}$/' => 'd/m/y',
+        '/^\d{1,2}-\d{1,2}-\d{2}$/' => 'd-m-y',
+    ];
+    foreach ($formats as $pattern => $format) {
+        if (!preg_match($pattern, $value)) {
+            continue;
+        }
         $date = DateTime::createFromFormat('!' . $format, $value);
         if ($date === false) {
             continue;
@@ -125,19 +142,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $created = 0;
                         $updated = 0;
                         $skipped = [];
+
+                        /*
+                        | Baca semua baris dulu supaya duplikat certificate_number
+                        | di dalam file itu sendiri bisa dideteksi sebelum mulai
+                        | insert/update -- kalau tidak, baris kedua akan bentrok
+                        | unique constraint dengan baris pertama yang baru saja
+                        | diinsert di transaction yang sama.
+                        */
+                        $dataRows = [];
                         $rowNumber = 1;
+                        while (($row = fgetcsv($handle)) !== false) {
+                            $rowNumber++;
+                            $isEmptyRow = true;
+                            foreach ($row as $cell) {
+                                if (trim((string) $cell) !== '') {
+                                    $isEmptyRow = false;
+                                    break;
+                                }
+                            }
+                            if ($isEmptyRow) {
+                                continue;
+                            }
+                            $dataRows[] = ['number' => $rowNumber, 'row' => $row];
+                        }
+
+                        $certRowsByValue = [];
+                        foreach ($dataRows as $entry) {
+                            $cert = isset($columnIndex['certificate_number'], $entry['row'][$columnIndex['certificate_number']])
+                                ? trim((string) $entry['row'][$columnIndex['certificate_number']])
+                                : '';
+                            if ($cert === '') {
+                                continue;
+                            }
+                            $certRowsByValue[$cert][] = $entry['number'];
+                        }
+                        $duplicateCertRows = [];
+                        foreach ($certRowsByValue as $cert => $rowsForCert) {
+                            if (count($rowsForCert) <= 1) {
+                                continue;
+                            }
+                            $firstRow = $rowsForCert[0];
+                            foreach (array_slice($rowsForCert, 1) as $dupRow) {
+                                $duplicateCertRows[$dupRow] =
+                                    "Baris {$dupRow}: certificate_number '{$cert}' duplikat dengan baris {$firstRow} di file yang sama.";
+                            }
+                        }
+
                         mysqli_begin_transaction($conn);
                         try {
-                            while (($row = fgetcsv($handle)) !== false) {
-                                $rowNumber++;
-                                $isEmptyRow = true;
-                                foreach ($row as $cell) {
-                                    if (trim((string) $cell) !== '') {
-                                        $isEmptyRow = false;
-                                        break;
-                                    }
-                                }
-                                if ($isEmptyRow) {
+                            foreach ($dataRows as $entry) {
+                                $rowNumber = $entry['number'];
+                                $row = $entry['row'];
+                                if (isset($duplicateCertRows[$rowNumber])) {
+                                    $skipped[] = $duplicateCertRows[$rowNumber];
                                     continue;
                                 }
                                 $getColumn = function (string $col) use ($row, $columnIndex): string {
@@ -296,7 +354,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         (int) $existing['id'],
                                     ];
                                     mysqli_stmt_bind_param($updateStmt, $types, ...$params);
-                                    mysqli_stmt_execute($updateStmt);
+                                    try {
+                                        mysqli_stmt_execute($updateStmt);
+                                    } catch (\mysqli_sql_exception $e) {
+                                        if ($e->getCode() === 1062) {
+                                            $skipped[] = "Baris {$rowNumber}: certificate_number '{$effCertificate}' sudah dipakai di data lain.";
+                                            continue;
+                                        }
+                                        throw $e;
+                                    }
                                     recordCompetencyHistory(
                                         $conn,
                                         (int) $existing['id'],
@@ -344,7 +410,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         $effNotes,
                                     ];
                                     mysqli_stmt_bind_param($insertStmt, $types, ...$params);
-                                    mysqli_stmt_execute($insertStmt);
+                                    try {
+                                        mysqli_stmt_execute($insertStmt);
+                                    } catch (\mysqli_sql_exception $e) {
+                                        if ($e->getCode() === 1062) {
+                                            $skipped[] = "Baris {$rowNumber}: certificate_number '{$effCertificate}' sudah dipakai di data lain.";
+                                            continue;
+                                        }
+                                        throw $e;
+                                    }
                                     recordCompetencyHistory(
                                         $conn,
                                         (int) mysqli_insert_id($conn),
