@@ -1,6 +1,7 @@
 <?php
 require_once "auth.php";
 require_once "../config/database.php";
+require_once "pagination.php";
 /*
 |--------------------------------------------------------------------------
 | Ambil statistik
@@ -133,6 +134,56 @@ $quizStatusFilter = isset($_GET['quiz_status']) ? trim($_GET['quiz_status']) : '
 if (!in_array($quizStatusFilter, ['passed', 'failed'], true)) {
     $quizStatusFilter = '';
 }
+
+/* Ringkasan lulus/gagal selalu dihitung dari SELURUH data yang cocok
+   dengan filter kompetensi, terlepas dari filter status yang sedang aktif,
+   supaya angka di atas tabel tidak ikut berubah saat tabelnya difilter. */
+$queryQuizSummary = "
+    SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN ec.status != 'FAILED' THEN 1 ELSE 0 END) AS total_passed
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL
+" . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "");
+$quizSummaryStmt = mysqli_prepare($conn, $queryQuizSummary);
+if ($filterCompetencyId > 0) {
+    mysqli_stmt_bind_param($quizSummaryStmt, "i", $filterCompetencyId);
+}
+mysqli_stmt_execute($quizSummaryStmt);
+$quizSummary = mysqli_fetch_assoc(mysqli_stmt_get_result($quizSummaryStmt));
+$totalQuizTaken = (int) $quizSummary['total'];
+$totalQuizPassed = (int) $quizSummary['total_passed'];
+$totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
+
+$quizConditions = ["e.is_deleted = 0", "ec.is_active = 1", "ec.score IS NOT NULL"];
+$quizParams = [];
+$quizTypes = "";
+if ($filterCompetencyId > 0) {
+    $quizConditions[] = "ec.competency_id = ?";
+    $quizParams[] = $filterCompetencyId;
+    $quizTypes .= "i";
+}
+if ($quizStatusFilter === 'passed') {
+    $quizConditions[] = "ec.status != 'FAILED'";
+} elseif ($quizStatusFilter === 'failed') {
+    $quizConditions[] = "ec.status = 'FAILED'";
+}
+$quizWhereSql = implode(' AND ', $quizConditions);
+
+$quizCountStmt = mysqli_prepare($conn, "
+    SELECT COUNT(*) AS total
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    WHERE {$quizWhereSql}
+");
+if (!empty($quizParams)) {
+    mysqli_stmt_bind_param($quizCountStmt, $quizTypes, ...$quizParams);
+}
+mysqli_stmt_execute($quizCountStmt);
+$quizFilteredTotal = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($quizCountStmt))['total'];
+$quizPg = paginate($quizFilteredTotal, 15);
+
 $queryQuizScores = "
     SELECT
         ec.id,
@@ -148,31 +199,27 @@ $queryQuizScores = "
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
-    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL
-" . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "") . "
+    WHERE {$quizWhereSql}
     ORDER BY score_date DESC
+    LIMIT ? OFFSET ?
 ";
+$quizDataParams = $quizParams;
+$quizDataTypes = $quizTypes . "ii";
+$quizDataParams[] = $quizPg['per_page'];
+$quizDataParams[] = $quizPg['offset'];
 $resultQuizScoresStmt = mysqli_prepare($conn, $queryQuizScores);
-if ($filterCompetencyId > 0) {
-    mysqli_stmt_bind_param($resultQuizScoresStmt, "i", $filterCompetencyId);
-}
+mysqli_stmt_bind_param($resultQuizScoresStmt, $quizDataTypes, ...$quizDataParams);
 mysqli_stmt_execute($resultQuizScoresStmt);
 $quizResult = mysqli_stmt_get_result($resultQuizScoresStmt);
-$quizScores = [];
+$displayedQuizScores = [];
 while ($row = mysqli_fetch_assoc($quizResult)) {
-    $quizScores[] = $row;
+    $displayedQuizScores[] = $row;
 }
-$totalQuizTaken = count($quizScores);
-$totalQuizPassed = count(array_filter($quizScores, fn($r) => $r['status'] !== 'FAILED'));
-$totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
-$displayedQuizScores = array_filter($quizScores, function ($r) use ($quizStatusFilter) {
-    if ($quizStatusFilter === 'passed') {
-        return $r['status'] !== 'FAILED';
-    }
-    if ($quizStatusFilter === 'failed') {
-        return $r['status'] === 'FAILED';
-    }
-    return true;
+$quizPaginationBaseParams = array_filter([
+    'competency_id' => $filterCompetencyId > 0 ? $filterCompetencyId : null,
+    'quiz_status' => $quizStatusFilter,
+], function ($value) {
+    return $value !== null && $value !== '';
 });
 $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
 ?>
@@ -426,7 +473,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
         </div>
     <?php endif; ?>
     <div class="card">
-        <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+        <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead>
                     <tr>
@@ -501,6 +548,16 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                 </tbody>
             </table>
         </div>
+        <?php if ($quizFilteredTotal > 0): ?>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-top">
+                <span class="text-muted" style="font-size:13px;">
+                    Menampilkan
+                    <?php echo $quizPg['offset'] + 1; ?>&ndash;<?php echo min($quizPg['offset'] + $quizPg['per_page'], $quizFilteredTotal); ?>
+                    dari <?php echo $quizFilteredTotal; ?> data
+                </span>
+                <?php echo render_pagination($quizPg, $quizPaginationBaseParams); ?>
+            </div>
+        <?php endif; ?>
     </div>
         </div>
     </main>
