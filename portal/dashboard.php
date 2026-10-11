@@ -84,12 +84,13 @@ $queryQuizScores = "
         c.portal_reset_allowed,
         ec.status,
         ec.quiz_submitted_at,
-        ec.quiz_retry_until
+        ec.quiz_retry_until,
+        COALESCE(ec.quiz_submitted_at, ec.training_date, ec.updated_at) AS score_date
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
-    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.quiz_submitted_at IS NOT NULL {$scopeClause}{$competencyClause}
-    ORDER BY ec.quiz_submitted_at DESC
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL {$scopeClause}{$competencyClause}
+    ORDER BY score_date DESC
 ";
 $quizParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterCompetencyId]) : $scopeParams;
 $quizTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '');
@@ -160,13 +161,13 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                 </div>
                 <div class="row g-3">
                     <div class="col-md-4 col-sm-6">
-                        <div class="stat-card stat-card-primary">
+                        <a href="team_members.php" class="stat-card stat-card-link stat-card-primary">
                             <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
                             <div>
                                 <div class="stat-label">Anggota Tim</div>
                                 <div class="stat-number"><?php echo $totalMembers; ?></div>
                             </div>
-                        </div>
+                        </a>
                     </div>
                     <div class="col-md-4 col-sm-6">
                         <a href="team_members.php" class="stat-card stat-card-link stat-card-success">
@@ -233,42 +234,52 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                         </form>
                     </div>
                 </div>
+                <?php
+                $resumeBaseParams = $filterCompetencyId > 0 ? ['competency_id' => $filterCompetencyId] : [];
+                $resumeLink = function (string $attendance = '') use ($resumeBaseParams): string {
+                    $params = $resumeBaseParams;
+                    if ($attendance !== '') {
+                        $params['attendance'] = $attendance;
+                    }
+                    return 'team_training_resume.php' . (empty($params) ? '' : ('?' . http_build_query($params)));
+                };
+                ?>
                 <div class="row g-3">
                     <div class="col-md-3 col-sm-6">
-                        <div class="stat-card stat-card-primary">
+                        <a href="<?php echo htmlspecialchars($resumeLink()); ?>" class="stat-card stat-card-link stat-card-primary">
                             <div class="stat-icon"><i class="bi bi-clipboard-check-fill"></i></div>
                             <div>
                                 <div class="stat-label">Total Di-assign</div>
                                 <div class="stat-number"><?php echo $totalAssignedAll; ?></div>
                             </div>
-                        </div>
+                        </a>
                     </div>
                     <div class="col-md-3 col-sm-6">
-                        <div class="stat-card stat-card-success">
+                        <a href="<?php echo htmlspecialchars($resumeLink('confirmed')); ?>" class="stat-card stat-card-link stat-card-success">
                             <div class="stat-icon"><i class="bi bi-person-check-fill"></i></div>
                             <div>
                                 <div class="stat-label">Hadir</div>
                                 <div class="stat-number"><?php echo $totalAttended; ?></div>
                             </div>
-                        </div>
+                        </a>
                     </div>
                     <div class="col-md-3 col-sm-6">
-                        <div class="stat-card stat-card-danger">
+                        <a href="<?php echo htmlspecialchars($resumeLink('not_confirmed')); ?>" class="stat-card stat-card-link stat-card-danger">
                             <div class="stat-icon"><i class="bi bi-person-x-fill"></i></div>
                             <div>
                                 <div class="stat-label">Belum Hadir</div>
                                 <div class="stat-number"><?php echo $totalNotAttended; ?></div>
                             </div>
-                        </div>
+                        </a>
                     </div>
                     <div class="col-md-3 col-sm-6">
-                        <div class="stat-card stat-card-warning">
+                        <a href="<?php echo htmlspecialchars($resumeLink()); ?>" class="stat-card stat-card-link stat-card-warning">
                             <div class="stat-icon"><i class="bi bi-percent"></i></div>
                             <div>
                                 <div class="stat-label">Persentase Kehadiran</div>
                                 <div class="stat-number"><?php echo $attendancePercentage; ?>%</div>
                             </div>
-                        </div>
+                        </a>
                     </div>
                 </div>
                 <div class="card mt-3">
@@ -329,7 +340,8 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                     <th>Skor</th>
                                     <th>KKM</th>
                                     <th>Status</th>
-                                    <th>Tanggal Submit</th>
+                                    <th>Sumber</th>
+                                    <th>Tanggal</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -340,6 +352,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                         $isPassed = $quizRow['status'] !== 'FAILED';
                                         $retryUntil = $quizRow['quiz_retry_until'] ?? null;
                                         $retryActive = !empty($retryUntil) && strtotime($retryUntil) >= time();
+                                        $fromQuiz = !empty($quizRow['quiz_submitted_at']);
                                         ?>
                                         <tr>
                                             <td><?php echo htmlspecialchars($quizRow['nik']); ?></td>
@@ -352,7 +365,14 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                                     <?php echo $isPassed ? 'Lulus' : 'Gagal'; ?>
                                                 </span>
                                             </td>
-                                            <td><?php echo date('d M Y', strtotime($quizRow['quiz_submitted_at'])); ?></td>
+                                            <td>
+                                                <span class="badge <?php echo $fromQuiz ? 'text-bg-info' : 'text-bg-secondary'; ?>">
+                                                    <?php echo $fromQuiz ? 'Quiz' : 'Input Manual'; ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <?php echo !empty($quizRow['score_date']) ? date('d M Y', strtotime($quizRow['score_date'])) : '-'; ?>
+                                            </td>
                                             <td>
                                                 <?php if (!$isPassed && portal_can_execute('dashboard')): ?>
                                                     <?php if ($retryActive): ?>
@@ -381,8 +401,8 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="8" class="text-center py-4">
-                                            Belum ada anggota tim yang mengerjakan quiz.
+                                        <td colspan="9" class="text-center py-4">
+                                            Belum ada nilai competency untuk anggota tim.
                                         </td>
                                     </tr>
                                 <?php endif; ?>
