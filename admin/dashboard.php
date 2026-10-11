@@ -108,14 +108,22 @@ while ($row = mysqli_fetch_assoc($resultCompetencyOptions)) {
 }
 $filterCompetencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
 
-/* Resume Assignment & Kehadiran Training */
+/* Resume Assignment & Kehadiran Training
+   "Di-assign" mencakup baik yang melalui alur quiz (scheduled_training_date
+   terisi) MAUPUN yang nilainya diinput/diimport manual tanpa quiz
+   (training_date langsung terisi, scheduled_training_date tetap kosong).
+   Begitu juga "Hadir" -- training_date terisi artinya training sudah
+   benar-benar terjadi (lewat quiz ATAU input manual), jadi dihitung hadir
+   walau attendance_confirmed belum/tidak pernah dicentang lewat fitur
+   konfirmasi kehadiran. */
 $queryAssignSummary = "
     SELECT
         COUNT(*) AS total_assigned,
-        SUM(CASE WHEN ec.attendance_confirmed = 1 THEN 1 ELSE 0 END) AS total_attended
+        SUM(CASE WHEN ec.attendance_confirmed = 1 OR ec.training_date IS NOT NULL THEN 1 ELSE 0 END) AS total_attended
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.scheduled_training_date IS NOT NULL
+    WHERE e.is_deleted = 0 AND ec.is_active = 1
+        AND (ec.scheduled_training_date IS NOT NULL OR ec.training_date IS NOT NULL)
 " . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "");
 $resultAssignSummaryStmt = mysqli_prepare($conn, $queryAssignSummary);
 if ($filterCompetencyId > 0) {

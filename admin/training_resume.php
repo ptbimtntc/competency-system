@@ -10,9 +10,13 @@ require_once "pagination.php";
 |--------------------------------------------------------------------------
 |
 | Menampilkan SEMUA employee_competencies yang pernah di-assign jadwal
-| training (scheduled_training_date IS NOT NULL), terlepas dari status
-| saat ini (ASSIGNED/VALID/FAILED/dll) -- supaya angkanya konsisten dengan
-| kartu statistik "Resume Assignment & Kehadiran Training" di dashboard.
+| training (scheduled_training_date IS NOT NULL) ATAU yang trainingnya
+| sudah tercatat lewat input/import manual tanpa quiz (training_date
+| terisi), terlepas dari status saat ini (ASSIGNED/VALID/FAILED/dll) --
+| supaya angkanya konsisten dengan kartu statistik "Resume Assignment &
+| Kehadiran Training" di dashboard. Untuk baris hasil import manual,
+| training_date yang terisi dianggap sebagai bukti kehadiran walau
+| attendance_confirmed belum/tidak pernah dicentang.
 |
 */
 
@@ -34,7 +38,11 @@ if (!in_array($teamFilter, $allowedTeams, true)) {
     $teamFilter = '';
 }
 
-$conditions = ["e.is_deleted = 0", "ec.is_active = 1", "ec.scheduled_training_date IS NOT NULL"];
+$conditions = [
+    "e.is_deleted = 0",
+    "ec.is_active = 1",
+    "(ec.scheduled_training_date IS NOT NULL OR ec.training_date IS NOT NULL)",
+];
 $params = [];
 $types = "";
 if ($competencyFilter > 0) {
@@ -43,9 +51,9 @@ if ($competencyFilter > 0) {
     $types .= "i";
 }
 if ($attendanceFilter === 'confirmed') {
-    $conditions[] = "ec.attendance_confirmed = 1";
+    $conditions[] = "(ec.attendance_confirmed = 1 OR ec.training_date IS NOT NULL)";
 } elseif ($attendanceFilter === 'not_confirmed') {
-    $conditions[] = "ec.attendance_confirmed = 0";
+    $conditions[] = "ec.attendance_confirmed = 0 AND ec.training_date IS NULL";
 }
 if ($search !== '') {
     $conditions[] = "(e.nik LIKE ? OR e.name LIKE ? OR e.department LIKE ?)";
@@ -78,6 +86,7 @@ $query = "
     SELECT
         ec.id,
         ec.scheduled_training_date,
+        ec.training_date,
         ec.attendance_confirmed,
         ec.status,
         ec.score,
@@ -91,7 +100,7 @@ $query = "
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
     WHERE " . implode(' AND ', $conditions) . "
-    ORDER BY ec.scheduled_training_date DESC, e.name ASC
+    ORDER BY COALESCE(ec.scheduled_training_date, ec.training_date) DESC, e.name ASC
     LIMIT ? OFFSET ?
 ";
 $dataParams = $params;
@@ -223,7 +232,7 @@ $pageTitle = $pageTitles[$attendanceFilter];
                                     <th>Employee</th>
                                     <th>Department</th>
                                     <th>Competency</th>
-                                    <th>Scheduled Date</th>
+                                    <th>Training Date</th>
                                     <th>Attendance</th>
                                     <th>Status</th>
                                     <th>Score</th>
@@ -233,6 +242,11 @@ $pageTitle = $pageTitles[$attendanceFilter];
                             <tbody>
                                 <?php if (mysqli_num_rows($result) > 0): ?>
                                     <?php while ($row = mysqli_fetch_assoc($result)): ?>
+                                        <?php
+                                        $isAttended = (int) $row['attendance_confirmed'] === 1 || !empty($row['training_date']);
+                                        $displayDate = $row['training_date'] ?? $row['scheduled_training_date'];
+                                        $fromManual = empty($row['scheduled_training_date']) && !empty($row['training_date']);
+                                        ?>
                                         <tr>
                                             <td><?php echo htmlspecialchars($row['nik']); ?></td>
                                             <td><strong><?php echo htmlspecialchars($row['employee_name']); ?></strong></td>
@@ -240,14 +254,16 @@ $pageTitle = $pageTitles[$attendanceFilter];
                                             <td><?php echo htmlspecialchars($row['competency_name']); ?></td>
                                             <td>
                                                 <?php
-                                                echo empty($row['scheduled_training_date'])
+                                                echo empty($displayDate)
                                                     ? '-'
-                                                    : date('d M Y', strtotime($row['scheduled_training_date']));
+                                                    : date('d M Y', strtotime($displayDate));
                                                 ?>
                                             </td>
                                             <td>
-                                                <?php if ((int) $row['attendance_confirmed'] === 1): ?>
-                                                    <span class="badge text-bg-success">Confirmed</span>
+                                                <?php if ($isAttended): ?>
+                                                    <span class="badge text-bg-success">
+                                                        Confirmed<?php echo $fromManual ? ' (Input Manual)' : ''; ?>
+                                                    </span>
                                                 <?php else: ?>
                                                     <span class="badge text-bg-secondary">Not confirmed</span>
                                                 <?php endif; ?>

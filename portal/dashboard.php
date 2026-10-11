@@ -46,13 +46,20 @@ $filterCompetencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id
 [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks);
 $competencyClause = $filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "";
 
+/* "Di-assign" mencakup baik yang melalui alur quiz (scheduled_training_date
+   terisi) MAUPUN yang nilainya diinput/diimport manual tanpa quiz
+   (training_date langsung terisi). "Hadir" juga mengikuti training_date --
+   training sudah benar-benar terjadi (quiz ATAU input manual), terhitung
+   hadir walau attendance_confirmed tidak pernah dicentang. */
 $queryAssignSummary = "
     SELECT
         COUNT(*) AS total_assigned,
-        SUM(CASE WHEN ec.attendance_confirmed = 1 THEN 1 ELSE 0 END) AS total_attended
+        SUM(CASE WHEN ec.attendance_confirmed = 1 OR ec.training_date IS NOT NULL THEN 1 ELSE 0 END) AS total_attended
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.scheduled_training_date IS NOT NULL {$scopeClause}{$competencyClause}
+    WHERE e.is_deleted = 0 AND ec.is_active = 1
+        AND (ec.scheduled_training_date IS NOT NULL OR ec.training_date IS NOT NULL)
+        {$scopeClause}{$competencyClause}
 ";
 $assignParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterCompetencyId]) : $scopeParams;
 $assignTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '');
