@@ -129,7 +129,14 @@ $submitError = isset($_GET['error']) && $_GET['error'] === '1';
                             <strong id="retryCountdownText">--:--</strong>
                         </div>
                     <?php endif; ?>
-                    <form method="POST" action="quiz_submit.php" id="quizForm">
+                    <form method="POST" action="quiz_submit.php" id="quizForm" onsubmit="
+                        if (!confirm('Jawaban tidak dapat diubah setelah dikirim. Lanjutkan?')) { return false; }
+                        var btn = document.getElementById('quizSubmitBtn');
+                        if (btn.disabled) { return false; }
+                        btn.disabled = true;
+                        btn.textContent = 'Mengirim...';
+                        return true;
+                    ">
                         <input type="hidden" name="id" value="<?php echo $id; ?>">
                         <?php foreach ($questions as $index => $question): ?>
                             <div class="quiz-question-card mb-4">
@@ -155,8 +162,7 @@ $submitError = isset($_GET['error']) && $_GET['error'] === '1';
                                 <?php endforeach; ?>
                             </div>
                         <?php endforeach; ?>
-                        <button type="submit" class="btn btn-primary w-100" id="quizSubmitBtn"
-                            onclick="return confirm('Jawaban tidak dapat diubah setelah dikirim. Lanjutkan?');">
+                        <button type="submit" class="btn btn-primary w-100" id="quizSubmitBtn">
                             Kirim Jawaban
                         </button>
                     </form>

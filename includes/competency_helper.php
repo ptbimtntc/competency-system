@@ -447,15 +447,22 @@ function generateCertificateNumber(mysqli $conn, int $competencyId, string $trai
         $code = str_pad(substr($letters, 0, 3), 3, 'X');
     }
 
-    $countStmt = mysqli_prepare(
+    /*
+    | Pakai nomor urut TERBESAR yang pernah dipakai (bukan COUNT baris) --
+    | riwayat sertifikat punya banyak nomor yang "dilompati" (dihapus /
+    | tidak pernah dipakai), jadi COUNT(*)+1 bisa menghasilkan nomor yang
+    | sudah dipakai baris lain dan menabrak UNIQUE constraint.
+    */
+    $maxStmt = mysqli_prepare(
         $conn,
-        "SELECT COUNT(*) AS total FROM employee_competencies
+        "SELECT MAX(CAST(SUBSTRING_INDEX(certificate_number, '/', -1) AS UNSIGNED)) AS max_seq
+        FROM employee_competencies
         WHERE competency_id = ? AND certificate_number IS NOT NULL AND certificate_number != ''"
     );
-    mysqli_stmt_bind_param($countStmt, "i", $competencyId);
-    mysqli_stmt_execute($countStmt);
-    $total = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'];
-    $sequence = str_pad((string) ($total + 1), 5, '0', STR_PAD_LEFT);
+    mysqli_stmt_bind_param($maxStmt, "i", $competencyId);
+    mysqli_stmt_execute($maxStmt);
+    $maxSeq = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($maxStmt))['max_seq'] ?? 0);
+    $sequence = str_pad((string) ($maxSeq + 1), 5, '0', STR_PAD_LEFT);
 
     return "PTBI/{$year}/{$roman}/{$code}/{$sequence}";
 }

@@ -26,6 +26,8 @@ try {
             ec.attendance_confirmed,
             ec.quiz_submitted_at,
             ec.quiz_retry_until,
+            ec.score,
+            ec.status,
             c.validity_months,
             c.passing_score
         FROM employee_competencies ec
@@ -44,6 +46,18 @@ try {
     $eligibility = getQuizEligibility($conn, $ec);
     if (!$eligibility['eligible']) {
         mysqli_rollback($conn);
+        if ($eligibility['reason'] === 'already_submitted') {
+            /*
+            | Terjadi kalau tombol submit terklik dua kali (koneksi lambat):
+            | request pertama sudah berhasil menyimpan jawaban, jadi arahkan
+            | ke halaman sukses yang sama alih-alih menampilkan pesan gagal.
+            */
+            header(
+                "Location: employee.php?id=" . $id . "&quiz_success=1&score=" . (int) $ec['score']
+                . "&passed=" . ($ec['status'] === 'FAILED' ? '0' : '1')
+            );
+            exit;
+        }
         header("Location: quiz.php?id=" . $id . "&error=1");
         exit;
     }
