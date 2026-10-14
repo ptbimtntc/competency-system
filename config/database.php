@@ -1,9 +1,9 @@
 <?php
 
-$host = "localhost";
-$user = "root";
-$password = "";
-$database = "bekaert_competency";
+$host = "srv1763.hstgr.io";
+$user = "u468140406_mtnacademy";
+$password = "Bekaert@2026";
+$database = "u468140406_mtnacademy";
 
 $conn = mysqli_connect(
     $host,
