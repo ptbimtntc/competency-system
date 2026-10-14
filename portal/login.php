@@ -44,9 +44,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $role = $employee ? resolve_portal_role($conn, $employee) : null;
 
-        if (!$employee || !$role || $role['slug'] === 'disabled') {
-            $error = "NIK tidak ditemukan atau tidak memiliki akses ke portal ini.";
-        } else {
+        if (!$employee) {
+            $error = "NIK tidak ditemukan.";
+        } elseif ($role && $role['slug'] === 'disabled') {
+            $error = "NIK ini tidak memiliki akses ke portal.";
+        } elseif ($role) {
+            /*
+            | Supervisor/superadmin -> punya tim, masuk ke dashboard portal.
+            */
             session_regenerate_id(true);
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
@@ -58,6 +63,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['portal_role_name'] = $role['name'];
 
             header("Location: dashboard.php");
+            exit;
+        } else {
+            /*
+            | Karyawan biasa (bukan supervisor, tidak punya bawahan, tidak
+            | diset manual) -- portal ini tidak punya dashboard untuk mereka,
+            | jadi langsung arahkan ke halaman Employee Competency
+            | Verification milik NIK-nya sendiri (index.php), bukan ditolak.
+            */
+            header("Location: ../index.php?nik=" . urlencode($employee['nik']));
             exit;
         }
     }
