@@ -31,8 +31,8 @@ $conditions = [
     "ec.is_active = 1",
     "(ec.scheduled_training_date IS NOT NULL OR ec.training_date IS NOT NULL)",
 ];
-$params = $scopeParams;
-$types = str_repeat('s', count($scopeParams));
+$params = [];
+$types = "";
 if ($competencyFilter > 0) {
     $conditions[] = "ec.competency_id = ?";
     $params[] = $competencyFilter;
@@ -53,6 +53,11 @@ if ($search !== '') {
     array_push($params, $keyword, $keyword, $keyword);
     $types .= "sss";
 }
+/* scopeClause ditempel di AKHIR SQL (lihat bawah), jadi param-nya juga
+   harus di akhir array -- kalau diletakkan di depan, bind jadi salah
+   posisi begitu ada filter competency/search aktif bersamaan dengan scope. */
+$params = array_merge($params, $scopeParams);
+$types .= str_repeat('s', count($scopeParams));
 
 $whereSql = implode(' AND ', $conditions) . $scopeClause;
 

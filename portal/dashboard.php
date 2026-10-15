@@ -309,7 +309,6 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                 */
                 $canViewTeamMembers = portal_can_view('team_members');
                 $canViewTeamRecertification = portal_can_view('team_recertification');
-                $canViewTeamAttendance = portal_can_view('team_attendance');
                 $statCard = function (string $slug, bool $canView, string $href, string $icon, string $colorClass, string $label, int $number) {
                     if ($canView) {
                         echo '<a href="' . htmlspecialchars($href) . '" class="stat-card stat-card-link ' . $colorClass . '">';
@@ -327,13 +326,25 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                         <?php $statCard('team_members', $canViewTeamMembers, 'team_members.php', 'bi-people-fill', 'stat-card-primary', 'Anggota Tim', $totalMembers); ?>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <?php $statCard('team_members', $canViewTeamMembers, 'team_members.php', 'bi-check-circle-fill', 'stat-card-success', 'Valid', $totalValid); ?>
+                        <a href="<?php echo htmlspecialchars($withCompetency('team_valid.php')); ?>" class="stat-card stat-card-link stat-card-success">
+                            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+                            <div>
+                                <div class="stat-label">Valid</div>
+                                <div class="stat-number"><?php echo $totalValid; ?></div>
+                            </div>
+                        </a>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <?php $statCard('team_recertification', $canViewTeamRecertification, 'team_recertification.php', 'bi-exclamation-triangle-fill', 'stat-card-danger', 'Expired', $totalExpired); ?>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <?php $statCard('team_attendance', $canViewTeamAttendance, $withCompetency('team_attendance.php'), 'bi-hourglass-split', 'stat-card-warning', 'Assigned', $totalAssigned); ?>
+                        <a href="<?php echo htmlspecialchars($withCompetency('team_assigned.php')); ?>" class="stat-card stat-card-link stat-card-warning">
+                            <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
+                            <div>
+                                <div class="stat-label">Assigned</div>
+                                <div class="stat-number"><?php echo $totalAssigned; ?></div>
+                            </div>
+                        </a>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <a href="<?php echo htmlspecialchars($withCompetency('team_training_resume.php', ['attendance' => 'waiting_quiz'])); ?>" class="stat-card stat-card-link stat-card-info">
