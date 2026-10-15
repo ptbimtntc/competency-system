@@ -33,6 +33,7 @@ $allowedTeams = ['A', 'B', 'C', 'D', 'NS'];
 if (!in_array($teamFilter, $allowedTeams, true)) {
     $teamFilter = '';
 }
+$supervisorFilter = trim($_GET['supervisor'] ?? '');
 $attendanceFilter = trim($_GET['attendance'] ?? '');
 if ($status !== 'ASSIGNED' || !in_array($attendanceFilter, ['confirmed', 'not_confirmed'], true)) {
     $attendanceFilter = '';
@@ -42,6 +43,17 @@ $competencyListResult = mysqli_query($conn, "SELECT id, name FROM competencies O
 $competencyList = [];
 while ($row = mysqli_fetch_assoc($competencyListResult)) {
     $competencyList[] = $row;
+}
+
+$supervisorListResult = mysqli_query(
+    $conn,
+    "SELECT DISTINCT supervisor FROM employees
+     WHERE is_deleted = 0 AND supervisor IS NOT NULL AND supervisor <> ''
+     ORDER BY supervisor ASC"
+);
+$supervisors = [];
+while ($row = mysqli_fetch_assoc($supervisorListResult)) {
+    $supervisors[] = $row['supervisor'];
 }
 
 /*
@@ -66,6 +78,11 @@ if ($competencyFilter > 0) {
 if ($teamFilter !== '') {
     $conditions[] = "e.team = ?";
     $params[] = $teamFilter;
+    $types .= "s";
+}
+if ($supervisorFilter !== '') {
+    $conditions[] = "e.supervisor = ?";
+    $params[] = $supervisorFilter;
     $types .= "s";
 }
 if ($attendanceFilter === 'confirmed') {
@@ -125,6 +142,7 @@ $paginationBaseParams = array_filter([
     'search' => $search,
     'competency_id' => $competencyFilter > 0 ? $competencyFilter : null,
     'team' => $teamFilter,
+    'supervisor' => $supervisorFilter,
     'attendance' => $attendanceFilter,
 ], function ($value) {
     return $value !== null && $value !== '';
@@ -142,6 +160,7 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
         'search' => $overrides['search'] ?? ($_GET['search'] ?? ''),
         'competency_id' => $overrides['competency_id'] ?? ($_GET['competency_id'] ?? ''),
         'team' => $overrides['team'] ?? ($_GET['team'] ?? ''),
+        'supervisor' => $overrides['supervisor'] ?? ($_GET['supervisor'] ?? ''),
         'attendance' => $overrides['attendance'] ?? ($_GET['attendance'] ?? ''),
     ];
     $base = array_filter($base, fn($v) => $v !== '');
@@ -258,6 +277,19 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <div class="col-md-2">
+                    <label class="form-label">Atasan</label>
+                    <select name="supervisor" class="form-control">
+                        <option value="">Semua Atasan</option>
+                        <?php foreach ($supervisors as $supervisorOption): ?>
+                            <option value="<?php echo htmlspecialchars($supervisorOption); ?>" <?php
+                                echo $supervisorFilter === $supervisorOption ? 'selected' : '';
+                                ?>>
+                                <?php echo htmlspecialchars($supervisorOption); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <?php if ($status === 'ASSIGNED'): ?>
                     <div class="col-md-2">
                         <label class="form-label">Attendance</label>
@@ -276,7 +308,7 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                     <button type="submit" class="btn btn-primary w-100">
                         Filter
                     </button>
-                    <?php if ($search !== '' || $competencyFilter > 0 || $teamFilter !== '' || $attendanceFilter !== ''): ?>
+                    <?php if ($search !== '' || $competencyFilter > 0 || $teamFilter !== '' || $supervisorFilter !== '' || $attendanceFilter !== ''): ?>
                         <a href="competency_status.php?status=<?php echo htmlspecialchars($status); ?>"
                             class="btn btn-outline-secondary w-100">
                             Reset

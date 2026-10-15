@@ -19,6 +19,7 @@ if (!in_array($team, $allowedTeams, true)) {
 }
 $competencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
 $search = trim($_GET['search'] ?? '');
+$supervisor = trim($_GET['supervisor'] ?? '');
 
 $conditions = ["ec.is_active = 1", "ec.expiry_date IS NOT NULL", "e.is_deleted = 0"];
 $params = [];
@@ -39,6 +40,11 @@ if ($search !== '') {
     $params[] = $keyword;
     $params[] = $keyword;
     $types .= "ss";
+}
+if ($supervisor !== '') {
+    $conditions[] = "e.supervisor = ?";
+    $params[] = $supervisor;
+    $types .= "s";
 }
 if ($window === 'expired') {
     $conditions[] = "ec.expiry_date < CURDATE()";

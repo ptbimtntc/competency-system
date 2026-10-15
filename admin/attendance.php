@@ -53,9 +53,20 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $scheduledDate)) {
 }
 $search = trim($_GET['search'] ?? '');
 $teamFilter = trim($_GET['team'] ?? '');
+$supervisorFilter = trim($_GET['supervisor'] ?? '');
 $allowedTeams = ['A', 'B', 'C', 'D', 'NS'];
 if (!in_array($teamFilter, $allowedTeams, true)) {
     $teamFilter = '';
+}
+$supervisorResult = mysqli_query(
+    $conn,
+    "SELECT DISTINCT supervisor FROM employees
+     WHERE is_deleted = 0 AND supervisor IS NOT NULL AND supervisor <> ''
+     ORDER BY supervisor ASC"
+);
+$supervisors = [];
+while ($row = mysqli_fetch_assoc($supervisorResult)) {
+    $supervisors[] = $row['supervisor'];
 }
 $sessionSelected = $competencyId > 0 && $scheduledDate !== '';
 $selectedCompetencyName = '';
@@ -243,7 +254,7 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                             placeholder="Search NIK, name, department, position, supervisor..."
                             value="<?php echo htmlspecialchars($search); ?>">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <select id="employeeTeamFilter" class="form-control">
                             <option value="">
                                 All Teams
@@ -253,6 +264,20 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                                     echo $teamFilter === $teamOption ? 'selected' : '';
                                     ?>>
                                     Team <?php echo $teamOption; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="employeeSupervisorFilter" class="form-control">
+                            <option value="">
+                                Semua Atasan
+                            </option>
+                            <?php foreach ($supervisors as $supervisorOption): ?>
+                                <option value="<?php echo htmlspecialchars($supervisorOption); ?>" <?php
+                                    echo $supervisorFilter === $supervisorOption ? 'selected' : '';
+                                    ?>>
+                                    <?php echo htmlspecialchars($supervisorOption); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -273,6 +298,9 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                     <?php endif; ?>
                     <?php if ($teamFilter !== ''): ?>
                         <input type="hidden" name="redirect_team" value="<?php echo htmlspecialchars($teamFilter); ?>">
+                    <?php endif; ?>
+                    <?php if ($supervisorFilter !== ''): ?>
+                        <input type="hidden" name="redirect_supervisor" value="<?php echo htmlspecialchars($supervisorFilter); ?>">
                     <?php endif; ?>
                     <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
                         <div>
@@ -338,7 +366,8 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                                                 ($employee['department'] ?? '') . ' ' . ($employee['position'] ?? '') . ' ' .
                                                 ($employee['supervisor'] ?? '')
                                             )); ?>"
-                                            data-team="<?php echo htmlspecialchars($employee['team'] ?? ''); ?>">
+                                            data-team="<?php echo htmlspecialchars($employee['team'] ?? ''); ?>"
+                                            data-supervisor="<?php echo htmlspecialchars($employee['supervisor'] ?? ''); ?>">
                                             <td>
                                                 <input type="hidden" name="visible_employees[]" value="<?php echo $employee['id']; ?>">
                                                 <input type="checkbox" class="form-check-input attendance-checkbox"
@@ -418,7 +447,8 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                                                 ($employee['department'] ?? '') . ' ' . ($employee['position'] ?? '') . ' ' .
                                                 ($employee['supervisor'] ?? '')
                                             )); ?>"
-                                            data-team="<?php echo htmlspecialchars($employee['team'] ?? ''); ?>">
+                                            data-team="<?php echo htmlspecialchars($employee['team'] ?? ''); ?>"
+                                            data-supervisor="<?php echo htmlspecialchars($employee['supervisor'] ?? ''); ?>">
                                             <td>
                                                 <input type="hidden" name="visible_employees[]" value="<?php echo $employee['id']; ?>">
                                                 <input type="checkbox" class="form-check-input attendance-checkbox"
@@ -491,20 +521,24 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
             */
             var searchInput = document.getElementById('employeeSearchInput');
             var teamSelect = document.getElementById('employeeTeamFilter');
+            var supervisorSelect = document.getElementById('employeeSupervisorFilter');
             var rows = document.querySelectorAll('.employee-row');
 
             function applyFilter() {
                 var keyword = (searchInput ? searchInput.value : '').trim().toLowerCase();
                 var team = teamSelect ? teamSelect.value : '';
+                var supervisor = supervisorSelect ? supervisorSelect.value : '';
                 rows.forEach(function (row) {
                     var matchesSearch = keyword === '' || row.dataset.search.indexOf(keyword) !== -1;
                     var matchesTeam = team === '' || row.dataset.team === team;
-                    row.style.display = (matchesSearch && matchesTeam) ? '' : 'none';
+                    var matchesSupervisor = supervisor === '' || row.dataset.supervisor === supervisor;
+                    row.style.display = (matchesSearch && matchesTeam && matchesSupervisor) ? '' : 'none';
                 });
             }
 
             searchInput?.addEventListener('input', applyFilter);
             teamSelect?.addEventListener('change', applyFilter);
+            supervisorSelect?.addEventListener('change', applyFilter);
             applyFilter();
         })();
     </script>

@@ -33,6 +33,7 @@ if (!in_array($team, $allowedTeams, true)) {
 }
 $competencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
 $search = trim($_GET['search'] ?? '');
+$supervisor = trim($_GET['supervisor'] ?? '');
 /*
 |--------------------------------------------------------------------------
 | Scope filter (team / competency / search)
@@ -61,6 +62,11 @@ if ($search !== '') {
     $scopeParams[] = $keyword;
     $scopeParams[] = $keyword;
     $scopeTypes .= "ss";
+}
+if ($supervisor !== '') {
+    $scopeConditions[] = "e.supervisor = ?";
+    $scopeParams[] = $supervisor;
+    $scopeTypes .= "s";
 }
 /*
 |--------------------------------------------------------------------------
@@ -154,6 +160,16 @@ $summaryDue90 = (int) ($summary['due_90'] ?? 0);
 |--------------------------------------------------------------------------
 */
 $competencyOptions = mysqli_query($conn, "SELECT id, name FROM competencies ORDER BY name ASC");
+$supervisorOptionsResult = mysqli_query(
+    $conn,
+    "SELECT DISTINCT supervisor FROM employees
+     WHERE is_deleted = 0 AND supervisor IS NOT NULL AND supervisor <> ''
+     ORDER BY supervisor ASC"
+);
+$supervisorOptions = [];
+while ($row = mysqli_fetch_assoc($supervisorOptionsResult)) {
+    $supervisorOptions[] = $row['supervisor'];
+}
 /*
 |--------------------------------------------------------------------------
 | Query string aktif (untuk link Export & Back)
@@ -164,6 +180,7 @@ $filterParams = array_filter([
     'team' => $team,
     'competency_id' => $competencyId > 0 ? $competencyId : null,
     'search' => $search,
+    'supervisor' => $supervisor,
 ], function ($value) {
     return $value !== null && $value !== '';
 });
@@ -300,6 +317,18 @@ $paginationBaseParams = $filterParams;
                 <div class="col-md-2">
                     <input type="text" name="search" class="form-control" placeholder="NIK / nama"
                         value="<?php echo htmlspecialchars($search); ?>">
+                </div>
+                <div class="col-md-2">
+                    <select name="supervisor" class="form-control">
+                        <option value="">Semua Atasan</option>
+                        <?php foreach ($supervisorOptions as $supervisorOption): ?>
+                            <option value="<?php echo htmlspecialchars($supervisorOption); ?>" <?php
+                                echo $supervisor === $supervisorOption ? 'selected' : '';
+                                ?>>
+                                <?php echo htmlspecialchars($supervisorOption); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary w-100">

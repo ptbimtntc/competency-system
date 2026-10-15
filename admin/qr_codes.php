@@ -34,7 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_stmt_bind_param($stmt, "s", $base_url);
         mysqli_stmt_execute($stmt);
         $redirectSearch = isset($_GET['search']) ? '&search=' . urlencode($_GET['search']) : '';
-        header("Location: qr_codes.php?saved=1" . $redirectSearch);
+        $redirectSupervisor = isset($_GET['supervisor']) ? '&supervisor=' . urlencode($_GET['supervisor']) : '';
+        header("Location: qr_codes.php?saved=1" . $redirectSearch . $redirectSupervisor);
         exit;
     }
 }
@@ -51,24 +52,38 @@ if (isset($_GET['saved']) && $_GET['saved'] === '1') {
 |--------------------------------------------------------------------------
 */
 $search = trim($_GET['search'] ?? '');
-if ($search !== '') {
-    $query = "
-        SELECT id, nik, name, department, position
-        FROM employees
-        WHERE is_deleted = 0 AND (nik LIKE ? OR name LIKE ? OR department LIKE ?)
-        ORDER BY name ASC
-    ";
-    $stmt = mysqli_prepare($conn, $query);
-    $keyword = "%" . $search . "%";
-    mysqli_stmt_bind_param($stmt, "sss", $keyword, $keyword, $keyword);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
-} else {
-    $result = mysqli_query(
-        $conn,
-        "SELECT id, nik, name, department, position FROM employees WHERE is_deleted = 0 ORDER BY name ASC"
-    );
+$supervisorFilter = trim($_GET['supervisor'] ?? '');
+$supervisorResult = mysqli_query(
+    $conn,
+    "SELECT DISTINCT supervisor FROM employees
+     WHERE is_deleted = 0 AND supervisor IS NOT NULL AND supervisor <> ''
+     ORDER BY supervisor ASC"
+);
+$supervisors = [];
+while ($row = mysqli_fetch_assoc($supervisorResult)) {
+    $supervisors[] = $row['supervisor'];
 }
+$conditions = ["is_deleted = 0"];
+$params = [];
+$types = "";
+if ($search !== '') {
+    $conditions[] = "(nik LIKE ? OR name LIKE ? OR department LIKE ?)";
+    $keyword = "%" . $search . "%";
+    array_push($params, $keyword, $keyword, $keyword);
+    $types .= "sss";
+}
+if ($supervisorFilter !== '') {
+    $conditions[] = "supervisor = ?";
+    $params[] = $supervisorFilter;
+    $types .= "s";
+}
+$query = "SELECT id, nik, name, department, position FROM employees WHERE " . implode(" AND ", $conditions) . " ORDER BY name ASC";
+$stmt = mysqli_prepare($conn, $query);
+if (count($params) > 0) {
+    mysqli_stmt_bind_param($stmt, $types, ...$params);
+}
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
 $qrItems = [];
 while ($employee = mysqli_fetch_assoc($result)) {
     $qrItems[] = [
@@ -177,10 +192,22 @@ while ($employee = mysqli_fetch_assoc($result)) {
         <!-- SEARCH -->
         <div class="employee-search">
             <form method="GET" class="row g-2">
-                <div class="col-md-10">
+                <div class="col-md-7">
                     <input type="text" name="search" class="form-control"
                         placeholder="Search NIK, name, department..."
                         value="<?php echo htmlspecialchars($search); ?>">
+                </div>
+                <div class="col-md-3">
+                    <select name="supervisor" class="form-control">
+                        <option value="">Semua Atasan</option>
+                        <?php foreach ($supervisors as $supervisorOption): ?>
+                            <option value="<?php echo htmlspecialchars($supervisorOption); ?>" <?php
+                                echo $supervisorFilter === $supervisorOption ? 'selected' : '';
+                                ?>>
+                                <?php echo htmlspecialchars($supervisorOption); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary w-100">

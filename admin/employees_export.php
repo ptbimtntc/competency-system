@@ -9,6 +9,7 @@ require_once "../includes/competency_helper.php";
 */
 $search = trim($_GET['search'] ?? '');
 $teamFilter = trim($_GET['team'] ?? '');
+$supervisorFilter = trim($_GET['supervisor'] ?? '');
 $allowedTeams = ['A', 'B', 'C', 'D', 'NS'];
 if (!in_array($teamFilter, $allowedTeams, true)) {
     $teamFilter = '';
@@ -25,6 +26,11 @@ if ($search !== '') {
 if ($teamFilter !== '') {
     $conditions[] = "team = ?";
     $params[] = $teamFilter;
+    $types .= "s";
+}
+if ($supervisorFilter !== '') {
+    $conditions[] = "supervisor = ?";
+    $params[] = $supervisorFilter;
     $types .= "s";
 }
 $query = "SELECT nik, name, department, position, supervisor, supervisor_nik, team, license_id FROM employees";

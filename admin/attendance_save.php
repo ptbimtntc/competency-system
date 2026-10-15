@@ -25,6 +25,7 @@ if ($competency_id <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $scheduledTraini
 }
 $redirectSearch = trim($_POST['redirect_search'] ?? '');
 $redirectTeam = trim($_POST['redirect_team'] ?? '');
+$redirectSupervisor = trim($_POST['redirect_supervisor'] ?? '');
 /*
 |--------------------------------------------------------------------------
 | Ambil default info training milik competency ini (untuk assignment baru)
@@ -271,6 +272,9 @@ try {
     }
     if ($redirectTeam !== '') {
         $redirect .= "&team=" . urlencode($redirectTeam);
+    }
+    if ($redirectSupervisor !== '') {
+        $redirect .= "&supervisor=" . urlencode($redirectSupervisor);
     }
     header("Location: " . $redirect);
     exit;

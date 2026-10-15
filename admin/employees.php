@@ -9,6 +9,7 @@ require_once "pagination.php";
 */
 $search = trim($_GET['search'] ?? '');
 $teamFilter = trim($_GET['team'] ?? '');
+$supervisorFilter = trim($_GET['supervisor'] ?? '');
 $allowedTeams = ['A', 'B', 'C', 'D', 'NS'];
 if (!in_array($teamFilter, $allowedTeams, true)) {
     $teamFilter = '';
@@ -32,6 +33,11 @@ if ($search !== '') {
 if ($teamFilter !== '') {
     $conditions[] = "team = ?";
     $params[] = $teamFilter;
+    $types .= "s";
+}
+if ($supervisorFilter !== '') {
+    $conditions[] = "supervisor = ?";
+    $params[] = $supervisorFilter;
     $types .= "s";
 }
 $whereClause = count($conditions) > 0
@@ -79,10 +85,26 @@ $result = mysqli_stmt_get_result($stmt);
 $paginationBaseParams = array_filter([
     'search' => $search,
     'team' => $teamFilter,
+    'supervisor' => $supervisorFilter,
     'deleted' => $showDeleted ? '1' : null,
 ], function ($value) {
     return $value !== null && $value !== '';
 });
+/*
+|--------------------------------------------------------------------------
+| Daftar atasan untuk dropdown filter
+|--------------------------------------------------------------------------
+*/
+$supervisorResult = mysqli_query(
+    $conn,
+    "SELECT DISTINCT supervisor FROM employees
+     WHERE is_deleted = 0 AND supervisor IS NOT NULL AND supervisor <> ''
+     ORDER BY supervisor ASC"
+);
+$supervisors = [];
+while ($row = mysqli_fetch_assoc($supervisorResult)) {
+    $supervisors[] = $row['supervisor'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -140,11 +162,11 @@ $paginationBaseParams = array_filter([
                 <a href="qr_codes.php" class="btn btn-outline-primary">
                     QR Codes
                 </a>
-                <a href="employees_export.php?search=<?php echo urlencode($search); ?>&team=<?php echo urlencode($teamFilter); ?>"
+                <a href="employees_export.php?search=<?php echo urlencode($search); ?>&team=<?php echo urlencode($teamFilter); ?>&supervisor=<?php echo urlencode($supervisorFilter); ?>"
                     class="btn btn-outline-secondary">
                     Export CSV
                 </a>
-                <a href="employee_competencies_export.php?search=<?php echo urlencode($search); ?>&team=<?php echo urlencode($teamFilter); ?>"
+                <a href="employee_competencies_export.php?search=<?php echo urlencode($search); ?>&team=<?php echo urlencode($teamFilter); ?>&supervisor=<?php echo urlencode($supervisorFilter); ?>"
                     class="btn btn-outline-secondary">
                     Export CSV + Competency
                 </a>
@@ -195,12 +217,12 @@ $paginationBaseParams = array_filter([
                 <?php if ($showDeleted): ?>
                     <input type="hidden" name="deleted" value="1">
                 <?php endif; ?>
-                <div class="col-md-7">
+                <div class="col-md-5">
                     <input type="text" name="search" class="form-control"
                         placeholder="Search NIK, name, department, position, supervisor..."
                         value="<?php echo htmlspecialchars($search); ?>">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <select name="team" class="form-control">
                         <option value="">
                             All Teams
@@ -210,6 +232,20 @@ $paginationBaseParams = array_filter([
                                 echo $teamFilter === $teamOption ? 'selected' : '';
                                 ?>>
                                 Team <?php echo $teamOption; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="supervisor" class="form-control">
+                        <option value="">
+                            Semua Atasan
+                        </option>
+                        <?php foreach ($supervisors as $supervisorOption): ?>
+                            <option value="<?php echo htmlspecialchars($supervisorOption); ?>" <?php
+                                echo $supervisorFilter === $supervisorOption ? 'selected' : '';
+                                ?>>
+                                <?php echo htmlspecialchars($supervisorOption); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>

@@ -33,9 +33,21 @@ if (!in_array($attendanceFilter, ['confirmed', 'not_confirmed'], true)) {
 }
 $search = trim($_GET['search'] ?? '');
 $teamFilter = trim($_GET['team'] ?? '');
+$supervisorFilter = trim($_GET['supervisor'] ?? '');
 $allowedTeams = ['A', 'B', 'C', 'D', 'NS'];
 if (!in_array($teamFilter, $allowedTeams, true)) {
     $teamFilter = '';
+}
+
+$supervisorListResult = mysqli_query(
+    $conn,
+    "SELECT DISTINCT supervisor FROM employees
+     WHERE is_deleted = 0 AND supervisor IS NOT NULL AND supervisor <> ''
+     ORDER BY supervisor ASC"
+);
+$supervisors = [];
+while ($row = mysqli_fetch_assoc($supervisorListResult)) {
+    $supervisors[] = $row['supervisor'];
 }
 
 $conditions = [
@@ -64,6 +76,11 @@ if ($search !== '') {
 if ($teamFilter !== '') {
     $conditions[] = "e.team = ?";
     $params[] = $teamFilter;
+    $types .= "s";
+}
+if ($supervisorFilter !== '') {
+    $conditions[] = "e.supervisor = ?";
+    $params[] = $supervisorFilter;
     $types .= "s";
 }
 
@@ -117,6 +134,7 @@ $paginationBaseParams = array_filter([
     'attendance' => $attendanceFilter,
     'search' => $search,
     'team' => $teamFilter,
+    'supervisor' => $supervisorFilter,
 ], function ($value) {
     return $value !== null && $value !== '';
 });
@@ -216,6 +234,19 @@ $pageTitle = $pageTitles[$attendanceFilter];
                                 <option value="not_confirmed" <?php echo $attendanceFilter === 'not_confirmed' ? 'selected' : ''; ?>>
                                     Belum Hadir
                                 </option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Atasan</label>
+                            <select name="supervisor" class="form-control">
+                                <option value="">Semua Atasan</option>
+                                <?php foreach ($supervisors as $supervisorOption): ?>
+                                    <option value="<?php echo htmlspecialchars($supervisorOption); ?>" <?php
+                                        echo $supervisorFilter === $supervisorOption ? 'selected' : '';
+                                        ?>>
+                                        <?php echo htmlspecialchars($supervisorOption); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-md-2 d-flex gap-2">
