@@ -13,7 +13,12 @@ $competencyOptions = [];
 while ($row = mysqli_fetch_assoc($resultCompetencyOptions)) {
     $competencyOptions[] = $row;
 }
-$filterCompetencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
+if (isset($_GET['competency_id'])) {
+    $filterCompetencyId = (int) $_GET['competency_id'];
+    $_SESSION['portal_dashboard_competency_id'] = $filterCompetencyId;
+} else {
+    $filterCompetencyId = (int) ($_SESSION['portal_dashboard_competency_id'] ?? 0);
+}
 
 function portal_count_members(mysqli $conn, ?array $scopeNiks, int $competencyId): int
 {

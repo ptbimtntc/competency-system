@@ -15,7 +15,12 @@ $competencyOptions = [];
 while ($row = mysqli_fetch_assoc($resultCompetencyOptions)) {
     $competencyOptions[] = $row;
 }
-$filterCompetencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
+if (isset($_GET['competency_id'])) {
+    $filterCompetencyId = (int) $_GET['competency_id'];
+    $_SESSION['admin_dashboard_competency_id'] = $filterCompetencyId;
+} else {
+    $filterCompetencyId = (int) ($_SESSION['admin_dashboard_competency_id'] ?? 0);
+}
 
 /* Total Employee */
 if ($filterCompetencyId > 0) {
