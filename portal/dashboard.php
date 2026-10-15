@@ -112,7 +112,10 @@ if ($filterCompetencyId > 0 && isset($_GET['training_date']) && $_GET['training_
         $filterTrainingDate = $candidateDate;
     }
 }
-$trainingDateClause = $filterTrainingDate !== '' ? " AND ec.scheduled_training_date = ?" : "";
+/* Training bisa tercatat lewat scheduled_training_date (alur quiz) ATAU
+   training_date (realisasi/input manual) -- cocokkan salah satu agar
+   training yang sudah terjadi di tanggal tersebut tidak terlewat. */
+$trainingDateClause = $filterTrainingDate !== '' ? " AND (ec.scheduled_training_date = ? OR ec.training_date = ?)" : "";
 
 /* "Di-assign" mencakup baik yang melalui alur quiz (scheduled_training_date
    terisi) MAUPUN yang nilainya diinput/diimport manual tanpa quiz
@@ -133,7 +136,8 @@ $assignParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterComp
 $assignTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '');
 if ($filterTrainingDate !== '') {
     $assignParams[] = $filterTrainingDate;
-    $assignTypes .= 's';
+    $assignParams[] = $filterTrainingDate;
+    $assignTypes .= 'ss';
 }
 $assignStmt = mysqli_prepare($conn, $queryAssignSummary);
 if (!empty($assignParams)) {
@@ -199,11 +203,15 @@ $quizCountStmt = mysqli_prepare($conn, "
     SELECT COUNT(*) AS total, AVG(ec.score) AS avg_score
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL {$scopeClause}{$competencyClause}{$quizStatusClause}{$quizSearchClause}
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL {$scopeClause}{$competencyClause}{$trainingDateClause}{$quizStatusClause}{$quizSearchClause}
 ");
 $quizCountParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterCompetencyId]) : $scopeParams;
+if ($filterTrainingDate !== '') {
+    $quizCountParams[] = $filterTrainingDate;
+    $quizCountParams[] = $filterTrainingDate;
+}
 $quizCountParams = array_merge($quizCountParams, $quizSearchParams);
-$quizCountTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '') . $quizSearchTypes;
+$quizCountTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '') . ($filterTrainingDate !== '' ? 'ss' : '') . $quizSearchTypes;
 if (!empty($quizCountParams)) {
     mysqli_stmt_bind_param($quizCountStmt, $quizCountTypes, ...$quizCountParams);
 }
@@ -233,13 +241,17 @@ $queryQuizScores = "
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
-    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL {$scopeClause}{$competencyClause}{$quizStatusClause}{$quizSearchClause}
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL {$scopeClause}{$competencyClause}{$trainingDateClause}{$quizStatusClause}{$quizSearchClause}
     ORDER BY (ec.quiz_submitted_at IS NULL) ASC, ec.score DESC, ec.quiz_submitted_at ASC
     LIMIT ? OFFSET ?
 ";
 $quizDataParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterCompetencyId]) : $scopeParams;
+if ($filterTrainingDate !== '') {
+    $quizDataParams[] = $filterTrainingDate;
+    $quizDataParams[] = $filterTrainingDate;
+}
 $quizDataParams = array_merge($quizDataParams, $quizSearchParams);
-$quizDataTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '') . $quizSearchTypes . "ii";
+$quizDataTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '') . ($filterTrainingDate !== '' ? 'ss' : '') . $quizSearchTypes . "ii";
 $quizDataParams[] = $quizPg['per_page'];
 $quizDataParams[] = $quizPg['offset'];
 $quizStmt = mysqli_prepare($conn, $queryQuizScores);
@@ -254,6 +266,7 @@ $quizPaginationBaseParams = array_filter([
     'competency_id' => $filterCompetencyId > 0 ? $filterCompetencyId : null,
     'quiz_status' => $quizStatusFilter,
     'quiz_search' => $quizSearch,
+    'training_date' => $filterTrainingDate,
 ], function ($value) {
     return $value !== null && $value !== '';
 });
@@ -414,11 +427,23 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                 <?php if ($quizStatusFilter !== ''): ?>
                                     <input type="hidden" name="quiz_status" value="<?php echo htmlspecialchars($quizStatusFilter); ?>">
                                 <?php endif; ?>
+                                <?php if ($quizSearch !== ''): ?>
+                                    <input type="hidden" name="quiz_search" value="<?php echo htmlspecialchars($quizSearch); ?>">
+                                <?php endif; ?>
                                 <input type="date" name="training_date" class="form-control"
                                     value="<?php echo htmlspecialchars($filterTrainingDate); ?>"
                                     onchange="this.form.submit()">
                                 <?php if ($filterTrainingDate !== ''): ?>
-                                    <a href="<?php echo htmlspecialchars($withCompetency('dashboard.php')); ?>" class="btn btn-outline-secondary">
+                                    <?php
+                                    $resetDateParams = array_filter([
+                                        'competency_id' => $filterCompetencyId,
+                                        'quiz_status' => $quizStatusFilter,
+                                        'quiz_search' => $quizSearch,
+                                    ], function ($value) {
+                                        return $value !== null && $value !== '';
+                                    });
+                                    ?>
+                                    <a href="dashboard.php?<?php echo htmlspecialchars(http_build_query($resetDateParams)); ?>" class="btn btn-outline-secondary">
                                         Semua Tanggal
                                     </a>
                                 <?php endif; ?>
@@ -504,6 +529,9 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                         <form method="GET" class="d-flex gap-2">
                             <?php if ($filterCompetencyId > 0): ?>
                                 <input type="hidden" name="competency_id" value="<?php echo $filterCompetencyId; ?>">
+                            <?php endif; ?>
+                            <?php if ($filterTrainingDate !== ''): ?>
+                                <input type="hidden" name="training_date" value="<?php echo htmlspecialchars($filterTrainingDate); ?>">
                             <?php endif; ?>
                             <input type="text" name="quiz_search" class="form-control" placeholder="NIK, nama, department..."
                                 value="<?php echo htmlspecialchars($quizSearch); ?>">

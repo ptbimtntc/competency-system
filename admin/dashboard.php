@@ -130,13 +130,17 @@ $queryAssignSummary = "
     WHERE e.is_deleted = 0 AND ec.is_active = 1
         AND (ec.scheduled_training_date IS NOT NULL OR ec.training_date IS NOT NULL)
 " . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "")
-  . ($filterTrainingDate !== '' ? " AND ec.scheduled_training_date = ?" : "");
-$assignSummaryTypes = ($filterCompetencyId > 0 ? "i" : "") . ($filterTrainingDate !== '' ? "s" : "");
+  /* Training bisa tercatat lewat scheduled_training_date (alur quiz) ATAU
+     training_date (realisasi/input manual) -- cocokkan salah satu agar
+     training yang sudah terjadi di tanggal tersebut tidak terlewat. */
+  . ($filterTrainingDate !== '' ? " AND (ec.scheduled_training_date = ? OR ec.training_date = ?)" : "");
+$assignSummaryTypes = ($filterCompetencyId > 0 ? "i" : "") . ($filterTrainingDate !== '' ? "ss" : "");
 $assignSummaryParams = [];
 if ($filterCompetencyId > 0) {
     $assignSummaryParams[] = $filterCompetencyId;
 }
 if ($filterTrainingDate !== '') {
+    $assignSummaryParams[] = $filterTrainingDate;
     $assignSummaryParams[] = $filterTrainingDate;
 }
 $resultAssignSummaryStmt = mysqli_prepare($conn, $queryAssignSummary);
@@ -187,6 +191,12 @@ if ($filterCompetencyId > 0) {
     $quizConditions[] = "ec.competency_id = ?";
     $quizParams[] = $filterCompetencyId;
     $quizTypes .= "i";
+}
+if ($filterTrainingDate !== '') {
+    $quizConditions[] = "(ec.scheduled_training_date = ? OR ec.training_date = ?)";
+    $quizParams[] = $filterTrainingDate;
+    $quizParams[] = $filterTrainingDate;
+    $quizTypes .= "ss";
 }
 if ($quizStatusFilter === 'passed') {
     $quizConditions[] = "ec.status != 'FAILED'";
@@ -257,6 +267,7 @@ $quizPaginationBaseParams = array_filter([
     'competency_id' => $filterCompetencyId > 0 ? $filterCompetencyId : null,
     'quiz_status' => $quizStatusFilter,
     'quiz_search' => $quizSearch,
+    'training_date' => $filterTrainingDate,
 ], function ($value) {
     return $value !== null && $value !== '';
 });
@@ -444,11 +455,23 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                     <?php if ($quizStatusFilter !== ''): ?>
                         <input type="hidden" name="quiz_status" value="<?php echo htmlspecialchars($quizStatusFilter); ?>">
                     <?php endif; ?>
+                    <?php if ($quizSearch !== ''): ?>
+                        <input type="hidden" name="quiz_search" value="<?php echo htmlspecialchars($quizSearch); ?>">
+                    <?php endif; ?>
                     <input type="date" name="training_date" class="form-control"
                         value="<?php echo htmlspecialchars($filterTrainingDate); ?>"
                         onchange="this.form.submit()">
                     <?php if ($filterTrainingDate !== ''): ?>
-                        <a href="dashboard.php?competency_id=<?php echo $filterCompetencyId; ?>" class="btn btn-outline-secondary">
+                        <?php
+                        $resetDateParams = array_filter([
+                            'competency_id' => $filterCompetencyId,
+                            'quiz_status' => $quizStatusFilter,
+                            'quiz_search' => $quizSearch,
+                        ], function ($value) {
+                            return $value !== null && $value !== '';
+                        });
+                        ?>
+                        <a href="dashboard.php?<?php echo htmlspecialchars(http_build_query($resetDateParams)); ?>" class="btn btn-outline-secondary">
                             Semua Tanggal
                         </a>
                     <?php endif; ?>
@@ -536,6 +559,9 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
             <form method="GET" class="d-flex gap-2">
                 <?php if ($filterCompetencyId > 0): ?>
                     <input type="hidden" name="competency_id" value="<?php echo $filterCompetencyId; ?>">
+                <?php endif; ?>
+                <?php if ($filterTrainingDate !== ''): ?>
+                    <input type="hidden" name="training_date" value="<?php echo htmlspecialchars($filterTrainingDate); ?>">
                 <?php endif; ?>
                 <input type="text" name="quiz_search" class="form-control" placeholder="NIK, nama, department..."
                     value="<?php echo htmlspecialchars($quizSearch); ?>">
