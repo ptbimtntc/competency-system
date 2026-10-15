@@ -102,6 +102,18 @@ $totalWaitingQuiz = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($stmtWaiting
 [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks);
 $competencyClause = $filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "";
 
+/* Filter tanggal training (scheduled_training_date) hanya tersedia & berlaku
+   ketika filter kompetensi aktif. Default kosong = semua tanggal. */
+$filterTrainingDate = '';
+if ($filterCompetencyId > 0 && isset($_GET['training_date']) && $_GET['training_date'] !== '') {
+    $candidateDate = $_GET['training_date'];
+    $dateParts = explode('-', $candidateDate);
+    if (count($dateParts) === 3 && checkdate((int) $dateParts[1], (int) $dateParts[2], (int) $dateParts[0])) {
+        $filterTrainingDate = $candidateDate;
+    }
+}
+$trainingDateClause = $filterTrainingDate !== '' ? " AND ec.scheduled_training_date = ?" : "";
+
 /* "Di-assign" mencakup baik yang melalui alur quiz (scheduled_training_date
    terisi) MAUPUN yang nilainya diinput/diimport manual tanpa quiz
    (training_date langsung terisi). "Hadir" juga mengikuti training_date --
@@ -115,10 +127,14 @@ $queryAssignSummary = "
     INNER JOIN employees e ON e.id = ec.employee_id
     WHERE e.is_deleted = 0 AND ec.is_active = 1
         AND (ec.scheduled_training_date IS NOT NULL OR ec.training_date IS NOT NULL)
-        {$scopeClause}{$competencyClause}
+        {$scopeClause}{$competencyClause}{$trainingDateClause}
 ";
 $assignParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterCompetencyId]) : $scopeParams;
 $assignTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '');
+if ($filterTrainingDate !== '') {
+    $assignParams[] = $filterTrainingDate;
+    $assignTypes .= 's';
+}
 $assignStmt = mysqli_prepare($conn, $queryAssignSummary);
 if (!empty($assignParams)) {
     mysqli_stmt_bind_param($assignStmt, $assignTypes, ...$assignParams);
@@ -371,6 +387,24 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                         <h2 class="mb-0">Resume Assignment &amp; Kehadiran Training</h2>
                         <p>Nilai Quiz per Karyawan di bawah juga ikut mengikuti filter kompetensi di atas.</p>
                     </div>
+                    <?php if ($filterCompetencyId > 0): ?>
+                        <div>
+                            <form method="GET" class="d-flex gap-2">
+                                <input type="hidden" name="competency_id" value="<?php echo $filterCompetencyId; ?>">
+                                <?php if ($quizStatusFilter !== ''): ?>
+                                    <input type="hidden" name="quiz_status" value="<?php echo htmlspecialchars($quizStatusFilter); ?>">
+                                <?php endif; ?>
+                                <input type="date" name="training_date" class="form-control"
+                                    value="<?php echo htmlspecialchars($filterTrainingDate); ?>"
+                                    onchange="this.form.submit()">
+                                <?php if ($filterTrainingDate !== ''): ?>
+                                    <a href="<?php echo htmlspecialchars($withCompetency('dashboard.php')); ?>" class="btn btn-outline-secondary">
+                                        Semua Tanggal
+                                    </a>
+                                <?php endif; ?>
+                            </form>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 <?php
                 $resumeBaseParams = $filterCompetencyId > 0 ? ['competency_id' => $filterCompetencyId] : [];

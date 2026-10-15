@@ -102,6 +102,17 @@ if ($filterCompetencyId > 0) {
 mysqli_stmt_execute($stmtWaitingQuiz);
 $totalWaitingQuiz = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($stmtWaitingQuiz))['total'];
 
+/* Filter tanggal training (scheduled_training_date) hanya tersedia & berlaku
+   ketika filter kompetensi aktif. Default kosong = semua tanggal. */
+$filterTrainingDate = '';
+if ($filterCompetencyId > 0 && isset($_GET['training_date']) && $_GET['training_date'] !== '') {
+    $candidateDate = $_GET['training_date'];
+    $dateParts = explode('-', $candidateDate);
+    if (count($dateParts) === 3 && checkdate((int) $dateParts[1], (int) $dateParts[2], (int) $dateParts[0])) {
+        $filterTrainingDate = $candidateDate;
+    }
+}
+
 /* Resume Assignment & Kehadiran Training
    "Di-assign" mencakup baik yang melalui alur quiz (scheduled_training_date
    terisi) MAUPUN yang nilainya diinput/diimport manual tanpa quiz
@@ -118,10 +129,19 @@ $queryAssignSummary = "
     INNER JOIN employees e ON e.id = ec.employee_id
     WHERE e.is_deleted = 0 AND ec.is_active = 1
         AND (ec.scheduled_training_date IS NOT NULL OR ec.training_date IS NOT NULL)
-" . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "");
-$resultAssignSummaryStmt = mysqli_prepare($conn, $queryAssignSummary);
+" . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "")
+  . ($filterTrainingDate !== '' ? " AND ec.scheduled_training_date = ?" : "");
+$assignSummaryTypes = ($filterCompetencyId > 0 ? "i" : "") . ($filterTrainingDate !== '' ? "s" : "");
+$assignSummaryParams = [];
 if ($filterCompetencyId > 0) {
-    mysqli_stmt_bind_param($resultAssignSummaryStmt, "i", $filterCompetencyId);
+    $assignSummaryParams[] = $filterCompetencyId;
+}
+if ($filterTrainingDate !== '') {
+    $assignSummaryParams[] = $filterTrainingDate;
+}
+$resultAssignSummaryStmt = mysqli_prepare($conn, $queryAssignSummary);
+if (!empty($assignSummaryParams)) {
+    mysqli_stmt_bind_param($resultAssignSummaryStmt, $assignSummaryTypes, ...$assignSummaryParams);
 }
 mysqli_stmt_execute($resultAssignSummaryStmt);
 $assignSummary = mysqli_fetch_assoc(mysqli_stmt_get_result($resultAssignSummaryStmt));
@@ -400,6 +420,24 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                 Nilai Quiz per Karyawan di bawah juga ikut mengikuti filter kompetensi di atas.
             </p>
         </div>
+        <?php if ($filterCompetencyId > 0): ?>
+            <div>
+                <form method="GET" class="d-flex gap-2">
+                    <input type="hidden" name="competency_id" value="<?php echo $filterCompetencyId; ?>">
+                    <?php if ($quizStatusFilter !== ''): ?>
+                        <input type="hidden" name="quiz_status" value="<?php echo htmlspecialchars($quizStatusFilter); ?>">
+                    <?php endif; ?>
+                    <input type="date" name="training_date" class="form-control"
+                        value="<?php echo htmlspecialchars($filterTrainingDate); ?>"
+                        onchange="this.form.submit()">
+                    <?php if ($filterTrainingDate !== ''): ?>
+                        <a href="dashboard.php?competency_id=<?php echo $filterCompetencyId; ?>" class="btn btn-outline-secondary">
+                            Semua Tanggal
+                        </a>
+                    <?php endif; ?>
+                </form>
+            </div>
+        <?php endif; ?>
     </div>
     <?php
     $resumeBaseParams = $filterCompetencyId > 0 ? ['competency_id' => $filterCompetencyId] : [];
