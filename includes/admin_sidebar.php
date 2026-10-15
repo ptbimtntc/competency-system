@@ -14,6 +14,9 @@ $__menuItems = [
     ['label' => 'Attendance', 'icon' => 'bi-clipboard2-check-fill', 'href' => 'attendance.php', 'match' => [
         'attendance.php', 'confirm_attendance_import.php',
     ]],
+    ['label' => 'Quiz', 'icon' => 'bi-patch-question-fill', 'href' => 'quiz_results.php', 'match' => [
+        'quiz_results.php', 'quiz_result_detail.php',
+    ]],
     ['label' => 'Recertification Due', 'icon' => 'bi-clock-history', 'href' => 'recertification.php', 'match' => ['recertification.php']],
     ['label' => 'Competency Matrix', 'icon' => 'bi-grid-3x3-gap-fill', 'href' => 'competency_matrix.php', 'match' => ['competency_matrix.php']],
     ['label' => 'Competency Gap', 'icon' => 'bi-bullseye', 'href' => 'competency_gap.php', 'match' => ['competency_gap.php']],

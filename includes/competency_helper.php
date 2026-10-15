@@ -612,3 +612,86 @@ function recordCompetencyHistory(
         // Riwayat bersifat pelengkap -- jangan sampai menggagalkan alur utama.
     }
 }
+/*
+|--------------------------------------------------------------------------
+| Rincian jawaban kuis (benar/salah per soal)
+|--------------------------------------------------------------------------
+|
+| Dipakai oleh admin/quiz_result_detail.php dan
+| portal/team_quiz_result_detail.php untuk menampilkan jawaban yang dipilih
+| karyawan dibandingkan dengan jawaban yang benar. Hanya mencakup percobaan
+| TERAKHIR -- employee_quiz_answers dihapus & diisi ulang setiap kali kuis
+| direset/dikerjakan ulang (lihat resetEmployeeCompetencyQuiz()), sehingga
+| tidak ada riwayat multi-percobaan yang tersimpan.
+|
+*/
+function getQuizAnswerBreakdown(mysqli $conn, int $employeeCompetencyId): array
+{
+    $ecStmt = mysqli_prepare(
+        $conn,
+        "SELECT competency_id FROM employee_competencies WHERE id = ? LIMIT 1"
+    );
+    mysqli_stmt_bind_param($ecStmt, "i", $employeeCompetencyId);
+    mysqli_stmt_execute($ecStmt);
+    $ec = mysqli_fetch_assoc(mysqli_stmt_get_result($ecStmt));
+    if (!$ec) {
+        return [];
+    }
+
+    $questionStmt = mysqli_prepare(
+        $conn,
+        "SELECT id, question_text, allow_multiple_answers FROM competency_questions
+        WHERE competency_id = ? ORDER BY id ASC"
+    );
+    mysqli_stmt_bind_param($questionStmt, "i", $ec['competency_id']);
+    mysqli_stmt_execute($questionStmt);
+    $questionResult = mysqli_stmt_get_result($questionStmt);
+
+    $questions = [];
+    while ($q = mysqli_fetch_assoc($questionResult)) {
+        $choiceStmt = mysqli_prepare(
+            $conn,
+            "SELECT id, option_label, choice_text, is_correct FROM competency_question_choices
+            WHERE question_id = ? ORDER BY option_label ASC"
+        );
+        mysqli_stmt_bind_param($choiceStmt, "i", $q['id']);
+        mysqli_stmt_execute($choiceStmt);
+        $choiceResult = mysqli_stmt_get_result($choiceStmt);
+
+        $answerStmt = mysqli_prepare(
+            $conn,
+            "SELECT choice_id FROM employee_quiz_answers
+            WHERE employee_competency_id = ? AND question_id = ?"
+        );
+        mysqli_stmt_bind_param($answerStmt, "ii", $employeeCompetencyId, $q['id']);
+        mysqli_stmt_execute($answerStmt);
+        $answerResult = mysqli_stmt_get_result($answerStmt);
+        $selectedChoiceIds = [];
+        while ($a = mysqli_fetch_assoc($answerResult)) {
+            $selectedChoiceIds[] = (int) $a['choice_id'];
+        }
+
+        $choices = [];
+        $correctChoiceIds = [];
+        while ($c = mysqli_fetch_assoc($choiceResult)) {
+            $c['is_correct'] = (int) $c['is_correct'];
+            $c['selected'] = in_array((int) $c['id'], $selectedChoiceIds, true);
+            if ($c['is_correct'] === 1) {
+                $correctChoiceIds[] = (int) $c['id'];
+            }
+            $choices[] = $c;
+        }
+
+        $sortedSelected = $selectedChoiceIds;
+        sort($sortedSelected);
+        $sortedCorrect = $correctChoiceIds;
+        sort($sortedCorrect);
+
+        $q['choices'] = $choices;
+        $q['answered'] = count($selectedChoiceIds) > 0;
+        $q['is_correct'] = $sortedSelected === $sortedCorrect;
+        $questions[] = $q;
+    }
+
+    return $questions;
+}

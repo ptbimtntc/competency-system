@@ -7,6 +7,7 @@ $__menuFileMap = [
     'team_competency_gap' => 'team_competency_gap.php',
     'team_recertification' => 'team_recertification.php',
     'team_attendance' => 'team_attendance.php',
+    'team_quiz_results' => 'team_quiz_results.php',
 ];
 $__menuResult = mysqli_query($conn, "SELECT slug, label, icon FROM portal_menus ORDER BY sort_order ASC");
 ?>

@@ -83,4 +83,8 @@ UNION ALL SELECT 'employee_competencies.quiz_retry_until',
        EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE table_schema=DATABASE() AND table_name='employee_competencies' AND column_name='quiz_retry_until'),
        '2026_10_10_add_quiz_retry_window.sql'
 
+UNION ALL SELECT 'portal_menus.team_quiz_results',
+       EXISTS(SELECT 1 FROM portal_menus WHERE slug='team_quiz_results'),
+       '2026_10_16_add_quiz_results_menu.sql'
+
 ORDER BY present ASC, migration_file ASC;
