@@ -81,7 +81,9 @@ $queryWaitingQuiz = "
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     WHERE ec.status = 'ASSIGNED' AND ec.attendance_confirmed = 1
-        AND ec.is_active = 1 AND e.is_deleted = 0 {$waitingQuizScopeClause}
+        AND ec.is_active = 1 AND e.is_deleted = 0
+        AND (ec.scheduled_training_date IS NOT NULL OR ec.training_date IS NOT NULL)
+        {$waitingQuizScopeClause}
 " . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "");
 $waitingQuizParams = $waitingQuizScopeParams;
 $waitingQuizTypes = str_repeat('s', count($waitingQuizScopeParams));
@@ -296,42 +298,42 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                     return $target . (empty($params) ? '' : ('?' . http_build_query($params)));
                 };
                 ?>
+                <?php
+                /*
+                |--------------------------------------------------------------------------
+                | Kartu yang menuju halaman dengan slug permission berbeda dari
+                | 'dashboard' harus dicek izinnya dulu -- kalau tidak, kartu bisa
+                | menampilkan angka tapi klik-nya ditolak ("Anda tidak memiliki akses").
+                | Kalau tidak punya akses, kartu ditampilkan non-link (statis).
+                |--------------------------------------------------------------------------
+                */
+                $canViewTeamMembers = portal_can_view('team_members');
+                $canViewTeamRecertification = portal_can_view('team_recertification');
+                $canViewTeamAttendance = portal_can_view('team_attendance');
+                $statCard = function (string $slug, bool $canView, string $href, string $icon, string $colorClass, string $label, int $number) {
+                    if ($canView) {
+                        echo '<a href="' . htmlspecialchars($href) . '" class="stat-card stat-card-link ' . $colorClass . '">';
+                    } else {
+                        echo '<div class="stat-card ' . $colorClass . '">';
+                    }
+                    echo '<div class="stat-icon"><i class="bi ' . $icon . '"></i></div>';
+                    echo '<div><div class="stat-label">' . htmlspecialchars($label) . '</div>';
+                    echo '<div class="stat-number">' . $number . '</div></div>';
+                    echo $canView ? '</a>' : '</div>';
+                };
+                ?>
                 <div class="row g-3">
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <a href="team_members.php" class="stat-card stat-card-link stat-card-primary">
-                            <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
-                            <div>
-                                <div class="stat-label">Anggota Tim</div>
-                                <div class="stat-number"><?php echo $totalMembers; ?></div>
-                            </div>
-                        </a>
+                        <?php $statCard('team_members', $canViewTeamMembers, 'team_members.php', 'bi-people-fill', 'stat-card-primary', 'Anggota Tim', $totalMembers); ?>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <a href="team_members.php" class="stat-card stat-card-link stat-card-success">
-                            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
-                            <div>
-                                <div class="stat-label">Valid</div>
-                                <div class="stat-number"><?php echo $totalValid; ?></div>
-                            </div>
-                        </a>
+                        <?php $statCard('team_members', $canViewTeamMembers, 'team_members.php', 'bi-check-circle-fill', 'stat-card-success', 'Valid', $totalValid); ?>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <a href="team_recertification.php" class="stat-card stat-card-link stat-card-danger">
-                            <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
-                            <div>
-                                <div class="stat-label">Expired</div>
-                                <div class="stat-number"><?php echo $totalExpired; ?></div>
-                            </div>
-                        </a>
+                        <?php $statCard('team_recertification', $canViewTeamRecertification, 'team_recertification.php', 'bi-exclamation-triangle-fill', 'stat-card-danger', 'Expired', $totalExpired); ?>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <a href="<?php echo htmlspecialchars($withCompetency('team_attendance.php')); ?>" class="stat-card stat-card-link stat-card-warning">
-                            <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
-                            <div>
-                                <div class="stat-label">Assigned</div>
-                                <div class="stat-number"><?php echo $totalAssigned; ?></div>
-                            </div>
-                        </a>
+                        <?php $statCard('team_attendance', $canViewTeamAttendance, $withCompetency('team_attendance.php'), 'bi-hourglass-split', 'stat-card-warning', 'Assigned', $totalAssigned); ?>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <a href="<?php echo htmlspecialchars($withCompetency('team_training_resume.php', ['attendance' => 'waiting_quiz'])); ?>" class="stat-card stat-card-link stat-card-info">
