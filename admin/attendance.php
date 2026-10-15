@@ -245,6 +245,12 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
             <?php endif; ?>
         </div>
         <?php if ($sessionSelected): ?>
+            <div class="mb-3">
+                <a href="attendance_export.php?competency_id=<?php echo $competencyId; ?>&scheduled_date=<?php echo urlencode($scheduledDate); ?>"
+                    class="btn btn-sm btn-outline-secondary">
+                    Export CSV
+                </a>
+            </div>
             <!-- SEARCH (client-side, tanpa reload -- supaya centangan attendance yang
                  belum disimpan tidak hilang saat admin mencari/memfilter nama lain) -->
             <div class="employee-search">

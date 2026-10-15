@@ -161,7 +161,7 @@ $quizPaginationBaseParams = array_filter([
             </div>
             <div class="dashboard-header mt-3 d-flex flex-wrap justify-content-between align-items-start gap-2">
                 <div></div>
-                <div>
+                <div class="d-flex gap-2">
                     <form method="GET" class="d-flex gap-2">
                         <?php if ($filterCompetencyId > 0): ?>
                             <input type="hidden" name="competency_id" value="<?php echo $filterCompetencyId; ?>">
@@ -175,6 +175,10 @@ $quizPaginationBaseParams = array_filter([
                         </select>
                         <button type="submit" class="btn btn-outline-primary">Cari</button>
                     </form>
+                    <a href="quiz_results_export.php?<?php echo htmlspecialchars(http_build_query($quizPaginationBaseParams)); ?>"
+                        class="btn btn-outline-secondary">
+                        Export CSV
+                    </a>
                 </div>
             </div>
             <div class="card">

@@ -153,6 +153,10 @@ $summaryDue90 = (int) ($summary['due_90'] ?? 0);
                         <h1>Recertification Due</h1>
                         <p>Competency tim yang sudah / akan habis masa berlakunya &mdash; per hari ini <?php echo date('d M Y'); ?></p>
                     </div>
+                    <a href="team_recertification_export.php?window=<?php echo urlencode($window); ?>&search=<?php echo urlencode($search); ?>"
+                        class="btn btn-outline-secondary">
+                        Export CSV
+                    </a>
                 </div>
 
                 <div class="row g-3 mb-1">

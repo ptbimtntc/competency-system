@@ -161,6 +161,9 @@ $paginationBaseParams = array_filter([
                         <h1>Competency Matrix</h1>
                         <p><?php echo $totalEmployees; ?> karyawan &times; <?php echo count($competencies); ?> competency</p>
                     </div>
+                    <a href="team_competency_matrix_export.php?search=<?php echo urlencode($search); ?>" class="btn btn-outline-secondary">
+                        Export CSV
+                    </a>
                 </div>
                 <div class="matrix-legend">
                     <span><i style="background:#d1e7dd;color:#0f5132">V</i> Valid</span>

@@ -199,6 +199,10 @@ function portalGapStatusBadge(string $status): array
                         <h1>Competency Gap</h1>
                         <p>Anggota tim vs competency wajib untuk posisinya</p>
                     </div>
+                    <a href="team_competency_gap_export.php?search=<?php echo urlencode($search); ?>&only_gaps=<?php echo $onlyGaps ? '1' : '0'; ?>"
+                        class="btn btn-outline-secondary">
+                        Export CSV
+                    </a>
                 </div>
 
                 <?php if ($requirementsMissing): ?>

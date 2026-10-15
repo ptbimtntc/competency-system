@@ -143,6 +143,14 @@ $paginationBaseParams = array_filter([
                 <a href="competency_gap.php" class="btn btn-outline-secondary">
                     Lihat Laporan Gap
                 </a>
+                <a href="position_requirements_export.php" class="btn btn-outline-secondary">
+                    Export CSV
+                </a>
+                <?php if (admin_can_write()): ?>
+                    <a href="position_requirements_import.php" class="btn btn-outline-secondary">
+                        Import CSV
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
 

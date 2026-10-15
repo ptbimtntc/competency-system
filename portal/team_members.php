@@ -67,6 +67,9 @@ $result = mysqli_stmt_get_result($stmt);
                         <h1>Anggota Tim</h1>
                         <p><?php echo portal_is_superadmin() ? 'Seluruh karyawan' : 'Anda &amp; bawahan Anda'; ?></p>
                     </div>
+                    <a href="team_members_export.php" class="btn btn-outline-secondary">
+                        Export CSV
+                    </a>
                 </div>
                 <div class="employee-table-card">
                     <div class="table-responsive">

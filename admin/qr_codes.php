@@ -215,6 +215,12 @@ while ($employee = mysqli_fetch_assoc($result)) {
                     </button>
                 </div>
             </form>
+            <div class="mt-2">
+                <a href="qr_codes_export.php?search=<?php echo urlencode($search); ?>&supervisor=<?php echo urlencode($supervisorFilter); ?>"
+                    class="btn btn-sm btn-outline-secondary">
+                    Export CSV
+                </a>
+            </div>
         </div>
 
         <!-- QR GRID -->

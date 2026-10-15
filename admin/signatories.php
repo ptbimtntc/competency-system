@@ -144,6 +144,9 @@ $paginationBaseParams = array_filter([
                 </p>
             </div>
             <div class="d-flex gap-2">
+                <a href="signatories_export.php?search=<?php echo urlencode($search); ?>" class="btn btn-outline-secondary">
+                    Export CSV
+                </a>
                 <?php if (admin_can_write()): ?>
                     <a href="signatory_add.php" class="btn btn-primary">
                         + Add Signatory
