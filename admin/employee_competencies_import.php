@@ -89,6 +89,16 @@ if (isset($_GET['template'])) {
 |   trainer/provider   -> default info training milik competency
 |   status             -> dihitung dari tanggal + passing score
 |
+| scheduled_training_date & quiz_submitted_at SENGAJA dikosongkan (NULL) --
+| kalau assignment yang di-update sebelumnya dibuat lewat alur assign/quiz
+| (competency_assign.php) dan masih punya scheduled_training_date tapi
+| quiz_submitted_at kosong, semua halaman list (employee_competencies.php,
+| competency_matrix.php, dashboard, dll) akan selalu menghitung ulang
+| statusnya jadi ASSIGNED lewat calculateCompetencyStatusWithSchedule(),
+| menimpa status VALID/FAILED hasil import ini. Import training berarti
+| training-nya sudah final di luar alur kuis, jadi field penjadwalan
+| kuisnya harus dibersihkan supaya status yang dihitung ulang konsisten.
+|
 */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_validate();
@@ -335,7 +345,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             training_provider = ?,
                                             certificate_number = ?,
                                             notes = ?,
-                                            status = ?
+                                            status = ?,
+                                            scheduled_training_date = NULL,
+                                            quiz_submitted_at = NULL
                                         WHERE id = ?"
                                     );
                                     // training_date, issue_date, expiry_date, score, trainer,

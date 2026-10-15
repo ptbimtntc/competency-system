@@ -224,6 +224,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
     $passing_score =
         $data['passing_score'] !== null ? (int) $data['passing_score'] : null;
+    /*
+    |--------------------------------------------------------------------------
+    | Score diisi manual = sudah final, bukan menunggu kuis
+    |--------------------------------------------------------------------------
+    |
+    | Kalau admin mengisi score di form ini secara manual (bukan dari hasil
+    | submit kuis), training-nya dianggap sudah final di luar alur kuis --
+    | scheduled_training_date dikosongkan supaya halaman list lain
+    | (employee_competencies.php, competency_matrix.php, dashboard, dll)
+    | tidak terus menghitung ulang status jadi ASSIGNED lewat
+    | calculateCompetencyStatusWithSchedule() (yang memaksa ASSIGNED selama
+    | scheduled_training_date terisi tapi quiz_submitted_at kosong).
+    |
+    */
+    if ($score !== null && empty($data['quiz_submitted_at'])) {
+        $scheduled_training_date = null;
+    }
     $status =
         calculateCompetencyStatusWithSchedule(
             $training_date,
