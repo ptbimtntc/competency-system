@@ -72,6 +72,30 @@ $totalExpired = portal_count_by_status($conn, 'EXPIRED', $scopeNiks, $filterComp
 $totalAssigned = portal_count_by_status($conn, 'ASSIGNED', $scopeNiks, $filterCompetencyId);
 $totalFailed = portal_count_by_status($conn, 'FAILED', $scopeNiks, $filterCompetencyId);
 
+/* Total Menunggu Kuis -- subset dari Assigned yang sudah konfirmasi hadir
+   tapi belum submit kuis, supaya terlihat terpisah dari yang belum hadir
+   sama sekali (butuh tindak lanjut berbeda). */
+[$waitingQuizScopeClause, $waitingQuizScopeParams] = portal_scope_where($scopeNiks);
+$queryWaitingQuiz = "
+    SELECT COUNT(*) AS total
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    WHERE ec.status = 'ASSIGNED' AND ec.attendance_confirmed = 1
+        AND ec.is_active = 1 AND e.is_deleted = 0 {$waitingQuizScopeClause}
+" . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "");
+$waitingQuizParams = $waitingQuizScopeParams;
+$waitingQuizTypes = str_repeat('s', count($waitingQuizScopeParams));
+if ($filterCompetencyId > 0) {
+    $waitingQuizParams[] = $filterCompetencyId;
+    $waitingQuizTypes .= 'i';
+}
+$stmtWaitingQuiz = mysqli_prepare($conn, $queryWaitingQuiz);
+if (!empty($waitingQuizParams)) {
+    mysqli_stmt_bind_param($stmtWaitingQuiz, $waitingQuizTypes, ...$waitingQuizParams);
+}
+mysqli_stmt_execute($stmtWaitingQuiz);
+$totalWaitingQuiz = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($stmtWaitingQuiz))['total'];
+
 /* Resume Assignment & Kehadiran Training (tim) */
 [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks);
 $competencyClause = $filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "";
@@ -293,6 +317,15 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             <div>
                                 <div class="stat-label">Assigned</div>
                                 <div class="stat-number"><?php echo $totalAssigned; ?></div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <a href="team_training_resume.php?attendance=waiting_quiz" class="stat-card stat-card-link stat-card-info">
+                            <div class="stat-icon"><i class="bi bi-pencil-square"></i></div>
+                            <div>
+                                <div class="stat-label">Menunggu Kuis</div>
+                                <div class="stat-number"><?php echo $totalWaitingQuiz; ?></div>
                             </div>
                         </a>
                     </div>

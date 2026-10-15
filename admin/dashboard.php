@@ -85,6 +85,22 @@ $totalExpired = admin_count_by_status($conn, 'EXPIRED', $filterCompetencyId);
 $totalAssigned = admin_count_by_status($conn, 'ASSIGNED', $filterCompetencyId);
 /* Total Failed */
 $totalFailed = admin_count_by_status($conn, 'FAILED', $filterCompetencyId);
+/* Total Menunggu Kuis -- subset dari Assigned yang sudah konfirmasi hadir
+   tapi belum submit kuis, supaya terlihat terpisah dari yang belum hadir
+   sama sekali (butuh tindak lanjut berbeda). */
+$queryWaitingQuiz = "
+    SELECT COUNT(*) AS total
+    FROM employee_competencies ec
+    INNER JOIN employees e ON e.id = ec.employee_id
+    WHERE ec.status = 'ASSIGNED' AND ec.attendance_confirmed = 1
+        AND ec.is_active = 1 AND e.is_deleted = 0
+" . ($filterCompetencyId > 0 ? " AND ec.competency_id = ?" : "");
+$stmtWaitingQuiz = mysqli_prepare($conn, $queryWaitingQuiz);
+if ($filterCompetencyId > 0) {
+    mysqli_stmt_bind_param($stmtWaitingQuiz, "i", $filterCompetencyId);
+}
+mysqli_stmt_execute($stmtWaitingQuiz);
+$totalWaitingQuiz = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($stmtWaitingQuiz))['total'];
 
 /* Resume Assignment & Kehadiran Training
    "Di-assign" mencakup baik yang melalui alur quiz (scheduled_training_date
@@ -338,6 +354,15 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
             <div>
                 <div class="stat-label">Assigned</div>
                 <div class="stat-number"><?php echo $totalAssigned; ?></div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <a href="competency_status.php?status=ASSIGNED&attendance=confirmed" class="stat-card stat-card-link stat-card-info">
+            <div class="stat-icon"><i class="bi bi-pencil-square"></i></div>
+            <div>
+                <div class="stat-label">Menunggu Kuis</div>
+                <div class="stat-number"><?php echo $totalWaitingQuiz; ?></div>
             </div>
         </a>
     </div>

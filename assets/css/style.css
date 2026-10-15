@@ -1244,6 +1244,10 @@ body {
 
 .stat-card-primary { border-left-color: #123f7d; }
 
+.stat-card-info { border-left-color: #1a7fa3; }
+.stat-card-info .stat-icon { background: #e3f3f8; color: #1a7fa3; }
+.stat-card-info .stat-number { color: #1a7fa3; }
+
 /* MANAGEMENT */
 .admin-menu-section {
     margin-top: 35px;

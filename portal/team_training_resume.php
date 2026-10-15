@@ -21,7 +21,7 @@ while ($row = mysqli_fetch_assoc($competencyListResult)) {
 
 $competencyFilter = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
 $attendanceFilter = trim($_GET['attendance'] ?? '');
-if (!in_array($attendanceFilter, ['confirmed', 'not_confirmed'], true)) {
+if (!in_array($attendanceFilter, ['confirmed', 'not_confirmed', 'waiting_quiz'], true)) {
     $attendanceFilter = '';
 }
 $search = trim($_GET['search'] ?? '');
@@ -42,6 +42,10 @@ if ($attendanceFilter === 'confirmed') {
     $conditions[] = "(ec.attendance_confirmed = 1 OR ec.training_date IS NOT NULL)";
 } elseif ($attendanceFilter === 'not_confirmed') {
     $conditions[] = "ec.attendance_confirmed = 0 AND ec.training_date IS NULL";
+} elseif ($attendanceFilter === 'waiting_quiz') {
+    /* Sudah hadir training tapi belum mengerjakan kuis -- subset dari
+       Assigned yang butuh ditindaklanjuti, beda dari yang belum hadir. */
+    $conditions[] = "ec.status = 'ASSIGNED' AND ec.attendance_confirmed = 1";
 }
 if ($search !== '') {
     $conditions[] = "(e.nik LIKE ? OR e.name LIKE ? OR e.department LIKE ?)";
@@ -109,6 +113,7 @@ $pageTitles = [
     '' => 'Resume Assignment & Kehadiran Training',
     'confirmed' => 'Anggota Tim yang Sudah Hadir Training',
     'not_confirmed' => 'Anggota Tim yang Belum Hadir Training',
+    'waiting_quiz' => 'Anggota Tim yang Menunggu Kuis',
 ];
 $pageTitle = $pageTitles[$attendanceFilter];
 ?>
@@ -186,6 +191,9 @@ $pageTitle = $pageTitles[$attendanceFilter];
                                 </option>
                                 <option value="not_confirmed" <?php echo $attendanceFilter === 'not_confirmed' ? 'selected' : ''; ?>>
                                     Belum Hadir
+                                </option>
+                                <option value="waiting_quiz" <?php echo $attendanceFilter === 'waiting_quiz' ? 'selected' : ''; ?>>
+                                    Menunggu Kuis
                                 </option>
                             </select>
                         </div>
