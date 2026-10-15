@@ -284,7 +284,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                     </div>
                 </div>
                 <div class="row g-3">
-                    <div class="col-md-4 col-sm-6">
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <a href="team_members.php" class="stat-card stat-card-link stat-card-primary">
                             <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
                             <div>
@@ -293,7 +293,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             </div>
                         </a>
                     </div>
-                    <div class="col-md-4 col-sm-6">
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <a href="team_members.php" class="stat-card stat-card-link stat-card-success">
                             <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
                             <div>
@@ -302,7 +302,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             </div>
                         </a>
                     </div>
-                    <div class="col-md-4 col-sm-6">
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <a href="team_recertification.php" class="stat-card stat-card-link stat-card-danger">
                             <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
                             <div>
@@ -311,7 +311,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             </div>
                         </a>
                     </div>
-                    <div class="col-md-4 col-sm-6">
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <a href="team_attendance.php" class="stat-card stat-card-link stat-card-warning">
                             <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
                             <div>
@@ -320,7 +320,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             </div>
                         </a>
                     </div>
-                    <div class="col-md-4 col-sm-6">
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <a href="team_training_resume.php?attendance=waiting_quiz" class="stat-card stat-card-link stat-card-info">
                             <div class="stat-icon"><i class="bi bi-pencil-square"></i></div>
                             <div>
@@ -329,7 +329,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             </div>
                         </a>
                     </div>
-                    <div class="col-md-4 col-sm-6">
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <a href="team_failed.php" class="stat-card stat-card-link stat-card-danger">
                             <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
                             <div>
@@ -357,7 +357,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                 };
                 ?>
                 <div class="row g-3">
-                    <div class="col-md-3 col-sm-6">
+                    <div class="col-6 col-md-3">
                         <a href="<?php echo htmlspecialchars($resumeLink()); ?>" class="stat-card stat-card-link stat-card-primary">
                             <div class="stat-icon"><i class="bi bi-clipboard-check-fill"></i></div>
                             <div>
@@ -366,7 +366,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             </div>
                         </a>
                     </div>
-                    <div class="col-md-3 col-sm-6">
+                    <div class="col-6 col-md-3">
                         <a href="<?php echo htmlspecialchars($resumeLink('confirmed')); ?>" class="stat-card stat-card-link stat-card-success">
                             <div class="stat-icon"><i class="bi bi-person-check-fill"></i></div>
                             <div>
@@ -375,7 +375,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             </div>
                         </a>
                     </div>
-                    <div class="col-md-3 col-sm-6">
+                    <div class="col-6 col-md-3">
                         <a href="<?php echo htmlspecialchars($resumeLink('not_confirmed')); ?>" class="stat-card stat-card-link stat-card-danger">
                             <div class="stat-icon"><i class="bi bi-person-x-fill"></i></div>
                             <div>
@@ -384,7 +384,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             </div>
                         </a>
                     </div>
-                    <div class="col-md-3 col-sm-6">
+                    <div class="col-6 col-md-3">
                         <a href="<?php echo htmlspecialchars($resumeLink()); ?>" class="stat-card stat-card-link stat-card-warning">
                             <div class="stat-icon"><i class="bi bi-percent"></i></div>
                             <div>
