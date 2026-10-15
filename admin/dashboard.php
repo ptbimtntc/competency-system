@@ -228,10 +228,10 @@ $quizFilteredTotal = (int) $quizCountRow['total'];
 $quizAverageScore = $quizCountRow['avg_score'] !== null ? round((float) $quizCountRow['avg_score'], 1) : null;
 $quizPg = paginate($quizFilteredTotal, 15);
 
-/* Urutan: nilai tertinggi lebih dulu; pada nilai yang sama, yang submit
-   quiz lebih cepat (quiz_submitted_at lebih awal) didahulukan. Nilai hasil
-   input manual (tanpa quiz_submitted_at) ditempatkan setelah seluruh hasil
-   quiz, tetap diurutkan dari nilai tertinggi. */
+/* Urutan: nilai tertinggi lebih dulu (berlaku lintas quiz & input manual --
+   nilai 100 input manual tetap di atas nilai 90 quiz). Hanya ketika nilainya
+   sama, baris dari quiz didahulukan dari input manual, dan di antara quiz
+   yang submit lebih cepat (quiz_submitted_at lebih awal) didahulukan. */
 $queryQuizScores = "
     SELECT
         ec.id,
@@ -248,7 +248,7 @@ $queryQuizScores = "
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
     WHERE {$quizWhereSql}
-    ORDER BY (ec.quiz_submitted_at IS NULL) ASC, ec.score DESC, ec.quiz_submitted_at ASC
+    ORDER BY ec.score DESC, (ec.quiz_submitted_at IS NULL) ASC, ec.quiz_submitted_at ASC
     LIMIT ? OFFSET ?
 ";
 $quizDataParams = $quizParams;
@@ -657,6 +657,15 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                         </tr>
                     <?php endif; ?>
                 </tbody>
+                <?php if ($quizAverageScore !== null): ?>
+                    <tfoot>
+                        <tr class="table-light fw-bold">
+                            <td colspan="3" class="text-end">Rata-rata</td>
+                            <td><?php echo $quizAverageScore; ?></td>
+                            <td colspan="5"></td>
+                        </tr>
+                    </tfoot>
+                <?php endif; ?>
             </table>
         </div>
         <?php if ($quizFilteredTotal > 0): ?>
