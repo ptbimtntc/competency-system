@@ -178,6 +178,8 @@ $totalQuizTaken = (int) $quizSummary['total'];
 $totalQuizPassed = (int) $quizSummary['total_passed'];
 $totalQuizFailed = $totalQuizTaken - $totalQuizPassed;
 
+$quizSearch = isset($_GET['quiz_search']) ? trim($_GET['quiz_search']) : '';
+
 $quizConditions = ["e.is_deleted = 0", "ec.is_active = 1", "ec.score IS NOT NULL"];
 $quizParams = [];
 $quizTypes = "";
@@ -191,10 +193,18 @@ if ($quizStatusFilter === 'passed') {
 } elseif ($quizStatusFilter === 'failed') {
     $quizConditions[] = "ec.status = 'FAILED'";
 }
+if ($quizSearch !== '') {
+    $quizConditions[] = "(e.nik LIKE ? OR e.name LIKE ? OR e.department LIKE ?)";
+    $quizSearchLike = '%' . $quizSearch . '%';
+    $quizParams[] = $quizSearchLike;
+    $quizParams[] = $quizSearchLike;
+    $quizParams[] = $quizSearchLike;
+    $quizTypes .= "sss";
+}
 $quizWhereSql = implode(' AND ', $quizConditions);
 
 $quizCountStmt = mysqli_prepare($conn, "
-    SELECT COUNT(*) AS total
+    SELECT COUNT(*) AS total, AVG(ec.score) AS avg_score
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     WHERE {$quizWhereSql}
@@ -203,9 +213,15 @@ if (!empty($quizParams)) {
     mysqli_stmt_bind_param($quizCountStmt, $quizTypes, ...$quizParams);
 }
 mysqli_stmt_execute($quizCountStmt);
-$quizFilteredTotal = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($quizCountStmt))['total'];
+$quizCountRow = mysqli_fetch_assoc(mysqli_stmt_get_result($quizCountStmt));
+$quizFilteredTotal = (int) $quizCountRow['total'];
+$quizAverageScore = $quizCountRow['avg_score'] !== null ? round((float) $quizCountRow['avg_score'], 1) : null;
 $quizPg = paginate($quizFilteredTotal, 15);
 
+/* Urutan: nilai tertinggi lebih dulu; pada nilai yang sama, yang submit
+   quiz lebih cepat (quiz_submitted_at lebih awal) didahulukan. Nilai hasil
+   input manual (tanpa quiz_submitted_at) ditempatkan setelah seluruh hasil
+   quiz, tetap diurutkan dari nilai tertinggi. */
 $queryQuizScores = "
     SELECT
         ec.id,
@@ -222,7 +238,7 @@ $queryQuizScores = "
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
     WHERE {$quizWhereSql}
-    ORDER BY score_date DESC
+    ORDER BY (ec.quiz_submitted_at IS NULL) ASC, ec.score DESC, ec.quiz_submitted_at ASC
     LIMIT ? OFFSET ?
 ";
 $quizDataParams = $quizParams;
@@ -240,6 +256,7 @@ while ($row = mysqli_fetch_assoc($quizResult)) {
 $quizPaginationBaseParams = array_filter([
     'competency_id' => $filterCompetencyId > 0 ? $filterCompetencyId : null,
     'quiz_status' => $quizStatusFilter,
+    'quiz_search' => $quizSearch,
 ], function ($value) {
     return $value !== null && $value !== '';
 });
@@ -511,6 +528,8 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                 <?php echo $totalQuizTaken; ?> quiz dikerjakan &mdash;
                 <span class="text-success"><?php echo $totalQuizPassed; ?> Lulus</span> /
                 <span class="text-danger"><?php echo $totalQuizFailed; ?> Gagal</span>
+                &mdash; Rata-rata nilai:
+                <strong><?php echo $quizAverageScore !== null ? $quizAverageScore : '-'; ?></strong>
             </p>
         </div>
         <div>
@@ -518,6 +537,8 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                 <?php if ($filterCompetencyId > 0): ?>
                     <input type="hidden" name="competency_id" value="<?php echo $filterCompetencyId; ?>">
                 <?php endif; ?>
+                <input type="text" name="quiz_search" class="form-control" placeholder="NIK, nama, department..."
+                    value="<?php echo htmlspecialchars($quizSearch); ?>">
                 <select name="quiz_status" class="form-control" onchange="this.form.submit()">
                     <option value=""<?php echo $quizStatusFilter === '' ? ' selected' : ''; ?>>Semua</option>
                     <option value="passed"<?php echo $quizStatusFilter === 'passed' ? ' selected' : ''; ?>>
@@ -527,6 +548,7 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                         Gagal
                     </option>
                 </select>
+                <button type="submit" class="btn btn-outline-primary">Cari</button>
             </form>
         </div>
     </div>

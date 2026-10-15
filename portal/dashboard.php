@@ -184,21 +184,39 @@ if ($quizStatusFilter === 'passed') {
     $quizStatusClause = " AND ec.status = 'FAILED'";
 }
 
+$quizSearch = isset($_GET['quiz_search']) ? trim($_GET['quiz_search']) : '';
+$quizSearchClause = '';
+$quizSearchParams = [];
+$quizSearchTypes = '';
+if ($quizSearch !== '') {
+    $quizSearchClause = " AND (e.nik LIKE ? OR e.name LIKE ? OR e.department LIKE ?)";
+    $quizSearchLike = '%' . $quizSearch . '%';
+    $quizSearchParams = [$quizSearchLike, $quizSearchLike, $quizSearchLike];
+    $quizSearchTypes = 'sss';
+}
+
 $quizCountStmt = mysqli_prepare($conn, "
-    SELECT COUNT(*) AS total
+    SELECT COUNT(*) AS total, AVG(ec.score) AS avg_score
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
-    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL {$scopeClause}{$competencyClause}{$quizStatusClause}
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL {$scopeClause}{$competencyClause}{$quizStatusClause}{$quizSearchClause}
 ");
 $quizCountParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterCompetencyId]) : $scopeParams;
-$quizCountTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '');
+$quizCountParams = array_merge($quizCountParams, $quizSearchParams);
+$quizCountTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '') . $quizSearchTypes;
 if (!empty($quizCountParams)) {
     mysqli_stmt_bind_param($quizCountStmt, $quizCountTypes, ...$quizCountParams);
 }
 mysqli_stmt_execute($quizCountStmt);
-$quizFilteredTotal = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($quizCountStmt))['total'];
+$quizCountRow = mysqli_fetch_assoc(mysqli_stmt_get_result($quizCountStmt));
+$quizFilteredTotal = (int) $quizCountRow['total'];
+$quizAverageScore = $quizCountRow['avg_score'] !== null ? round((float) $quizCountRow['avg_score'], 1) : null;
 $quizPg = paginate($quizFilteredTotal, 15);
 
+/* Urutan: nilai tertinggi lebih dulu; pada nilai yang sama, yang submit
+   quiz lebih cepat (quiz_submitted_at lebih awal) didahulukan. Nilai hasil
+   input manual (tanpa quiz_submitted_at) ditempatkan setelah seluruh hasil
+   quiz, tetap diurutkan dari nilai tertinggi. */
 $queryQuizScores = "
     SELECT
         ec.id,
@@ -215,12 +233,13 @@ $queryQuizScores = "
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
-    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL {$scopeClause}{$competencyClause}{$quizStatusClause}
-    ORDER BY score_date DESC
+    WHERE e.is_deleted = 0 AND ec.is_active = 1 AND ec.score IS NOT NULL {$scopeClause}{$competencyClause}{$quizStatusClause}{$quizSearchClause}
+    ORDER BY (ec.quiz_submitted_at IS NULL) ASC, ec.score DESC, ec.quiz_submitted_at ASC
     LIMIT ? OFFSET ?
 ";
 $quizDataParams = $filterCompetencyId > 0 ? array_merge($scopeParams, [$filterCompetencyId]) : $scopeParams;
-$quizDataTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '') . "ii";
+$quizDataParams = array_merge($quizDataParams, $quizSearchParams);
+$quizDataTypes = str_repeat('s', count($scopeParams)) . ($filterCompetencyId > 0 ? 'i' : '') . $quizSearchTypes . "ii";
 $quizDataParams[] = $quizPg['per_page'];
 $quizDataParams[] = $quizPg['offset'];
 $quizStmt = mysqli_prepare($conn, $queryQuizScores);
@@ -234,6 +253,7 @@ while ($row = mysqli_fetch_assoc($quizResult)) {
 $quizPaginationBaseParams = array_filter([
     'competency_id' => $filterCompetencyId > 0 ? $filterCompetencyId : null,
     'quiz_status' => $quizStatusFilter,
+    'quiz_search' => $quizSearch,
 ], function ($value) {
     return $value !== null && $value !== '';
 });
@@ -476,6 +496,8 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             <?php echo $totalQuizTaken; ?> quiz dikerjakan &mdash;
                             <span class="text-success"><?php echo $totalQuizPassed; ?> Lulus</span> /
                             <span class="text-danger"><?php echo $totalQuizFailed; ?> Gagal</span>
+                            &mdash; Rata-rata nilai:
+                            <strong><?php echo $quizAverageScore !== null ? $quizAverageScore : '-'; ?></strong>
                         </p>
                     </div>
                     <div>
@@ -483,6 +505,8 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                             <?php if ($filterCompetencyId > 0): ?>
                                 <input type="hidden" name="competency_id" value="<?php echo $filterCompetencyId; ?>">
                             <?php endif; ?>
+                            <input type="text" name="quiz_search" class="form-control" placeholder="NIK, nama, department..."
+                                value="<?php echo htmlspecialchars($quizSearch); ?>">
                             <select name="quiz_status" class="form-control" onchange="this.form.submit()">
                                 <option value=""<?php echo $quizStatusFilter === '' ? ' selected' : ''; ?>>Semua</option>
                                 <option value="passed"<?php echo $quizStatusFilter === 'passed' ? ' selected' : ''; ?>>
@@ -492,6 +516,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                     Gagal
                                 </option>
                             </select>
+                            <button type="submit" class="btn btn-outline-primary">Cari</button>
                         </form>
                     </div>
                 </div>
