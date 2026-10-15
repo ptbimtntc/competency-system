@@ -5,42 +5,67 @@ require_once "../admin/pagination.php";
 
 $scopeNiks = portal_scope_niks($conn);
 
-/* Total team members */
-if ($scopeNiks === null) {
-    $totalMembers = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS total FROM employees WHERE is_deleted = 0"))['total'];
-} else {
-    $totalMembers = count($scopeNiks);
-}
-
-function portal_count_by_status(mysqli $conn, string $status, ?array $scopeNiks): int
-{
-    [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks);
-    $query = "
-        SELECT COUNT(*) AS total
-        FROM employee_competencies ec
-        INNER JOIN employees e ON e.id = ec.employee_id
-        WHERE ec.status = ? AND ec.is_active = 1 AND e.is_deleted = 0 {$scopeClause}
-    ";
-    $stmt = mysqli_prepare($conn, $query);
-    $types = "s" . str_repeat("s", count($scopeParams));
-    $params = array_merge([$status], $scopeParams);
-    mysqli_stmt_bind_param($stmt, $types, ...$params);
-    mysqli_stmt_execute($stmt);
-    return (int) mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['total'];
-}
-
-$totalValid = portal_count_by_status($conn, 'VALID', $scopeNiks);
-$totalExpired = portal_count_by_status($conn, 'EXPIRED', $scopeNiks);
-$totalAssigned = portal_count_by_status($conn, 'ASSIGNED', $scopeNiks);
-$totalFailed = portal_count_by_status($conn, 'FAILED', $scopeNiks);
-
-/* Daftar kompetensi untuk filter resume assignment/kehadiran & quiz */
+/* Daftar kompetensi untuk filter dashboard. Filter ini berlaku untuk seluruh
+   halaman (kartu ringkasan, Resume Assignment & Kehadiran Training, dan
+   Nilai Quiz per Karyawan), bukan hanya sebagian seksi. */
 $resultCompetencyOptions = mysqli_query($conn, "SELECT id, name FROM competencies ORDER BY name ASC");
 $competencyOptions = [];
 while ($row = mysqli_fetch_assoc($resultCompetencyOptions)) {
     $competencyOptions[] = $row;
 }
 $filterCompetencyId = isset($_GET['competency_id']) ? (int) $_GET['competency_id'] : 0;
+
+function portal_count_members(mysqli $conn, ?array $scopeNiks, int $competencyId): int
+{
+    [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks);
+    if ($competencyId > 0) {
+        $query = "
+            SELECT COUNT(DISTINCT e.id) AS total
+            FROM employees e
+            INNER JOIN employee_competencies ec ON ec.employee_id = e.id AND ec.is_active = 1 AND ec.competency_id = ?
+            WHERE e.is_deleted = 0 {$scopeClause}
+        ";
+        $types = "i" . str_repeat("s", count($scopeParams));
+        $params = array_merge([$competencyId], $scopeParams);
+    } else {
+        $query = "SELECT COUNT(*) AS total FROM employees e WHERE e.is_deleted = 0 {$scopeClause}";
+        $types = str_repeat("s", count($scopeParams));
+        $params = $scopeParams;
+    }
+    $stmt = mysqli_prepare($conn, $query);
+    if (!empty($params)) {
+        mysqli_stmt_bind_param($stmt, $types, ...$params);
+    }
+    mysqli_stmt_execute($stmt);
+    return (int) mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['total'];
+}
+
+function portal_count_by_status(mysqli $conn, string $status, ?array $scopeNiks, int $competencyId = 0): int
+{
+    [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks);
+    $competencyClause = $competencyId > 0 ? " AND ec.competency_id = ?" : "";
+    $query = "
+        SELECT COUNT(*) AS total
+        FROM employee_competencies ec
+        INNER JOIN employees e ON e.id = ec.employee_id
+        WHERE ec.status = ? AND ec.is_active = 1 AND e.is_deleted = 0 {$scopeClause}{$competencyClause}
+    ";
+    $stmt = mysqli_prepare($conn, $query);
+    $types = "s" . str_repeat("s", count($scopeParams)) . ($competencyId > 0 ? "i" : "");
+    $params = array_merge([$status], $scopeParams);
+    if ($competencyId > 0) {
+        $params[] = $competencyId;
+    }
+    mysqli_stmt_bind_param($stmt, $types, ...$params);
+    mysqli_stmt_execute($stmt);
+    return (int) mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['total'];
+}
+
+$totalMembers = portal_count_members($conn, $scopeNiks, $filterCompetencyId);
+$totalValid = portal_count_by_status($conn, 'VALID', $scopeNiks, $filterCompetencyId);
+$totalExpired = portal_count_by_status($conn, 'EXPIRED', $scopeNiks, $filterCompetencyId);
+$totalAssigned = portal_count_by_status($conn, 'ASSIGNED', $scopeNiks, $filterCompetencyId);
+$totalFailed = portal_count_by_status($conn, 'FAILED', $scopeNiks, $filterCompetencyId);
 
 /* Resume Assignment & Kehadiran Training (tim) */
 [$scopeClause, $scopeParams] = portal_scope_where($scopeNiks);
@@ -200,12 +225,33 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
         <?php include "../includes/portal_sidebar.php"; ?>
         <main class="admin-content">
             <div class="admin-container">
-                <div class="dashboard-header">
+                <div class="dashboard-header d-flex flex-wrap justify-content-between align-items-start gap-2">
                     <div>
                         <h1>Dashboard Tim</h1>
                         <p>
                             <?php echo portal_is_superadmin() ? 'Seluruh karyawan' : 'Anda &amp; bawahan Anda'; ?>
                         </p>
+                    </div>
+                    <div>
+                        <form method="GET" class="d-flex gap-2">
+                            <?php if ($quizStatusFilter !== ''): ?>
+                                <input type="hidden" name="quiz_status" value="<?php echo htmlspecialchars($quizStatusFilter); ?>">
+                            <?php endif; ?>
+                            <select name="competency_id" class="form-control" onchange="this.form.submit()">
+                                <option value="0"<?php echo $filterCompetencyId === 0 ? ' selected' : ''; ?>>
+                                    Semua Kompetensi
+                                </option>
+                                <?php foreach ($competencyOptions as $competencyOption): ?>
+                                    <option value="<?php echo $competencyOption['id']; ?>"
+                                        <?php echo $filterCompetencyId === (int) $competencyOption['id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($competencyOption['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <noscript>
+                                <button type="submit" class="btn btn-outline-primary">Filter</button>
+                            </noscript>
+                        </form>
                     </div>
                 </div>
                 <div class="row g-3">
@@ -259,28 +305,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                 <div class="dashboard-header mt-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
                     <div>
                         <h2 class="mb-0">Resume Assignment &amp; Kehadiran Training</h2>
-                        <p>Nilai Quiz per Karyawan di bawah juga ikut mengikuti filter ini.</p>
-                    </div>
-                    <div>
-                        <form method="GET" class="d-flex gap-2">
-                            <?php if ($quizStatusFilter !== ''): ?>
-                                <input type="hidden" name="quiz_status" value="<?php echo htmlspecialchars($quizStatusFilter); ?>">
-                            <?php endif; ?>
-                            <select name="competency_id" class="form-control" onchange="this.form.submit()">
-                                <option value="0"<?php echo $filterCompetencyId === 0 ? ' selected' : ''; ?>>
-                                    Semua Kompetensi
-                                </option>
-                                <?php foreach ($competencyOptions as $competencyOption): ?>
-                                    <option value="<?php echo $competencyOption['id']; ?>"
-                                        <?php echo $filterCompetencyId === (int) $competencyOption['id'] ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($competencyOption['name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <noscript>
-                                <button type="submit" class="btn btn-outline-primary">Filter</button>
-                            </noscript>
-                        </form>
+                        <p>Nilai Quiz per Karyawan di bawah juga ikut mengikuti filter kompetensi di atas.</p>
                     </div>
                 </div>
                 <?php
