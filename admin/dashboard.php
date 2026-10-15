@@ -311,6 +311,20 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
             </form>
         </div>
     </div>
+<?php
+/*
+|--------------------------------------------------------------------------
+| Link kartu status -> competency_status.php, ikut filter kompetensi
+|--------------------------------------------------------------------------
+*/
+$statusLink = function (string $status, array $extra = []) use ($filterCompetencyId): string {
+    $params = array_merge(['status' => $status], $extra);
+    if ($filterCompetencyId > 0) {
+        $params['competency_id'] = $filterCompetencyId;
+    }
+    return 'competency_status.php?' . http_build_query($params);
+};
+?>
 <div class="row g-3">
     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
         <a href="employees.php" class="stat-card stat-card-link stat-card-primary">
@@ -331,7 +345,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
         </a>
     </div>
     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-        <a href="competency_status.php?status=VALID" class="stat-card stat-card-link stat-card-success">
+        <a href="<?php echo htmlspecialchars($statusLink('VALID')); ?>" class="stat-card stat-card-link stat-card-success">
             <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
             <div>
                 <div class="stat-label">Valid</div>
@@ -340,7 +354,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
         </a>
     </div>
     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-        <a href="competency_status.php?status=EXPIRED" class="stat-card stat-card-link stat-card-danger">
+        <a href="<?php echo htmlspecialchars($statusLink('EXPIRED')); ?>" class="stat-card stat-card-link stat-card-danger">
             <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
             <div>
                 <div class="stat-label">Expired</div>
@@ -349,7 +363,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
         </a>
     </div>
     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-        <a href="competency_status.php?status=ASSIGNED" class="stat-card stat-card-link stat-card-warning">
+        <a href="<?php echo htmlspecialchars($statusLink('ASSIGNED')); ?>" class="stat-card stat-card-link stat-card-warning">
             <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
             <div>
                 <div class="stat-label">Assigned</div>
@@ -358,7 +372,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
         </a>
     </div>
     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-        <a href="competency_status.php?status=ASSIGNED&attendance=confirmed" class="stat-card stat-card-link stat-card-info">
+        <a href="<?php echo htmlspecialchars($statusLink('ASSIGNED', ['attendance' => 'confirmed'])); ?>" class="stat-card stat-card-link stat-card-info">
             <div class="stat-icon"><i class="bi bi-pencil-square"></i></div>
             <div>
                 <div class="stat-label">Menunggu Kuis</div>
@@ -367,7 +381,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
         </a>
     </div>
     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-        <a href="competency_status.php?status=FAILED" class="stat-card stat-card-link stat-card-danger">
+        <a href="<?php echo htmlspecialchars($statusLink('FAILED')); ?>" class="stat-card stat-card-link stat-card-danger">
             <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
             <div>
                 <div class="stat-label">Failed</div>

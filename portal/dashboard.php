@@ -283,6 +283,19 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                         </form>
                     </div>
                 </div>
+                <?php
+                /*
+                |--------------------------------------------------------------------------
+                | Link kartu status, ikut filter kompetensi dashboard kalau halaman
+                | tujuannya mendukung filter competency_id
+                |--------------------------------------------------------------------------
+                */
+                $competencyQuery = $filterCompetencyId > 0 ? ['competency_id' => $filterCompetencyId] : [];
+                $withCompetency = function (string $target, array $extra = []) use ($competencyQuery): string {
+                    $params = array_merge($extra, $competencyQuery);
+                    return $target . (empty($params) ? '' : ('?' . http_build_query($params)));
+                };
+                ?>
                 <div class="row g-3">
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                         <a href="team_members.php" class="stat-card stat-card-link stat-card-primary">
@@ -312,7 +325,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                         </a>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <a href="team_attendance.php" class="stat-card stat-card-link stat-card-warning">
+                        <a href="<?php echo htmlspecialchars($withCompetency('team_attendance.php')); ?>" class="stat-card stat-card-link stat-card-warning">
                             <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
                             <div>
                                 <div class="stat-label">Assigned</div>
@@ -321,7 +334,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                         </a>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <a href="team_training_resume.php?attendance=waiting_quiz" class="stat-card stat-card-link stat-card-info">
+                        <a href="<?php echo htmlspecialchars($withCompetency('team_training_resume.php', ['attendance' => 'waiting_quiz'])); ?>" class="stat-card stat-card-link stat-card-info">
                             <div class="stat-icon"><i class="bi bi-pencil-square"></i></div>
                             <div>
                                 <div class="stat-label">Menunggu Kuis</div>
@@ -330,7 +343,7 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                         </a>
                     </div>
                     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <a href="team_failed.php" class="stat-card stat-card-link stat-card-danger">
+                        <a href="<?php echo htmlspecialchars($withCompetency('team_failed.php')); ?>" class="stat-card stat-card-link stat-card-danger">
                             <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
                             <div>
                                 <div class="stat-label">Failed</div>
