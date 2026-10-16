@@ -288,7 +288,22 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-2 d-flex align-items-center text-muted" style="font-size:13px;">
+                </div>
+                <div class="row g-2 mt-2">
+                    <div class="col-md-3">
+                        <select id="employeeAttendanceFilter" class="form-control">
+                            <option value="">
+                                Semua Status Kehadiran
+                            </option>
+                            <option value="yes">
+                                Sudah Hadir
+                            </option>
+                            <option value="no">
+                                Belum Hadir
+                            </option>
+                        </select>
+                    </div>
+                    <div class="col-md-9 d-flex align-items-center text-muted" style="font-size:13px;">
                         Filter langsung, tidak reload
                     </div>
                 </div>
@@ -511,11 +526,13 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                 visibleCheckboxes().forEach(function (cb) {
                     cb.checked = true;
                 });
+                applyFilter();
             });
             document.getElementById('clearAllBtn')?.addEventListener('click', function () {
                 visibleCheckboxes().forEach(function (cb) {
                     cb.checked = false;
                 });
+                applyFilter();
             });
 
             /*
@@ -528,23 +545,34 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
             var searchInput = document.getElementById('employeeSearchInput');
             var teamSelect = document.getElementById('employeeTeamFilter');
             var supervisorSelect = document.getElementById('employeeSupervisorFilter');
+            var attendanceSelect = document.getElementById('employeeAttendanceFilter');
             var rows = document.querySelectorAll('.employee-row');
 
             function applyFilter() {
                 var keyword = (searchInput ? searchInput.value : '').trim().toLowerCase();
                 var team = teamSelect ? teamSelect.value : '';
                 var supervisor = supervisorSelect ? supervisorSelect.value : '';
+                var attendance = attendanceSelect ? attendanceSelect.value : '';
                 rows.forEach(function (row) {
                     var matchesSearch = keyword === '' || row.dataset.search.indexOf(keyword) !== -1;
                     var matchesTeam = team === '' || row.dataset.team === team;
                     var matchesSupervisor = supervisor === '' || row.dataset.supervisor === supervisor;
-                    row.style.display = (matchesSearch && matchesTeam && matchesSupervisor) ? '' : 'none';
+                    var checkbox = row.querySelector('.attendance-checkbox');
+                    var isAttended = !!(checkbox && checkbox.checked);
+                    var matchesAttendance = attendance === ''
+                        || (attendance === 'yes' && isAttended)
+                        || (attendance === 'no' && !isAttended);
+                    row.style.display = (matchesSearch && matchesTeam && matchesSupervisor && matchesAttendance) ? '' : 'none';
                 });
             }
 
             searchInput?.addEventListener('input', applyFilter);
             teamSelect?.addEventListener('change', applyFilter);
             supervisorSelect?.addEventListener('change', applyFilter);
+            attendanceSelect?.addEventListener('change', applyFilter);
+            document.querySelectorAll('.attendance-checkbox').forEach(function (cb) {
+                cb.addEventListener('change', applyFilter);
+            });
             applyFilter();
         })();
     </script>
