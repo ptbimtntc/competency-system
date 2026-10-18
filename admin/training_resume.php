@@ -111,13 +111,14 @@ $query = "
         e.name AS employee_name,
         e.department,
         e.team,
+        e.supervisor,
         c.name AS competency_name,
         c.passing_score
     FROM employee_competencies ec
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
     WHERE " . implode(' AND ', $conditions) . "
-    ORDER BY COALESCE(ec.scheduled_training_date, ec.training_date) DESC, e.name ASC
+    ORDER BY e.supervisor ASC, e.name ASC
     LIMIT ? OFFSET ?
 ";
 $dataParams = $params;
@@ -263,6 +264,7 @@ $pageTitle = $pageTitles[$attendanceFilter];
                         <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
+                                    <th>Atasan</th>
                                     <th>NIK</th>
                                     <th>Employee</th>
                                     <th>Department</th>
@@ -283,6 +285,7 @@ $pageTitle = $pageTitles[$attendanceFilter];
                                         $fromManual = empty($row['scheduled_training_date']) && !empty($row['training_date']);
                                         ?>
                                         <tr>
+                                            <td><?php echo htmlspecialchars($row['supervisor'] ?? '-'); ?></td>
                                             <td><?php echo htmlspecialchars($row['nik']); ?></td>
                                             <td><strong><?php echo htmlspecialchars($row['employee_name']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($row['department'] ?? '-'); ?></td>
@@ -331,7 +334,7 @@ $pageTitle = $pageTitles[$attendanceFilter];
                                     <?php endwhile; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="9" class="text-center py-5">
+                                        <td colspan="10" class="text-center py-5">
                                             Tidak ada data.
                                         </td>
                                     </tr>

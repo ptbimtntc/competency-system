@@ -72,7 +72,7 @@ $query = "
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
     WHERE " . implode(' AND ', $conditions) . "
-    ORDER BY COALESCE(ec.scheduled_training_date, ec.training_date) DESC, e.name ASC
+    ORDER BY e.supervisor ASC, e.name ASC
 ";
 $stmt = mysqli_prepare($conn, $query);
 if (!empty($params)) {
@@ -100,18 +100,18 @@ header("Pragma: no-cache");
 $output = fopen('php://output', 'w');
 fputs($output, "\xEF\xBB\xBF");
 fputcsv($output, [
-    'nik', 'name', 'department', 'team', 'supervisor', 'competency',
+    'supervisor', 'nik', 'name', 'department', 'team', 'competency',
     'training_date', 'attendance', 'status', 'score',
 ]);
 while ($row = mysqli_fetch_assoc($result)) {
     $isAttended = (int) $row['attendance_confirmed'] === 1 || !empty($row['training_date']);
     $displayDate = $row['training_date'] ?? $row['scheduled_training_date'];
     fputcsv($output, [
+        csvSafeValue($row['supervisor']),
         csvSafeValue($row['nik']),
         csvSafeValue($row['employee_name']),
         csvSafeValue($row['department']),
         csvSafeValue($row['team']),
-        csvSafeValue($row['supervisor']),
         csvSafeValue($row['competency_name']),
         empty($displayDate) ? '' : date('Y-m-d', strtotime($displayDate)),
         $isAttended ? 'yes' : 'no',
