@@ -460,9 +460,16 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                     }
                     return 'team_training_resume.php' . (empty($params) ? '' : ('?' . http_build_query($params)));
                 };
+                $resumeExportLink = function (string $attendance = '') use ($resumeBaseParams): string {
+                    $params = $resumeBaseParams;
+                    if ($attendance !== '') {
+                        $params['attendance'] = $attendance;
+                    }
+                    return 'team_training_resume_export.php' . (empty($params) ? '' : ('?' . http_build_query($params)));
+                };
                 ?>
                 <div class="row g-3">
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md-3 stat-card-wrap">
                         <a href="<?php echo htmlspecialchars($resumeLink()); ?>" class="stat-card stat-card-link stat-card-primary">
                             <div class="stat-icon"><i class="bi bi-clipboard-check-fill"></i></div>
                             <div>
@@ -470,8 +477,11 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                 <div class="stat-number"><?php echo $totalAssignedAll; ?></div>
                             </div>
                         </a>
+                        <a href="<?php echo htmlspecialchars($resumeExportLink()); ?>" class="stat-card-export" title="Export CSV">
+                            <i class="bi bi-download"></i>
+                        </a>
                     </div>
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md-3 stat-card-wrap">
                         <a href="<?php echo htmlspecialchars($resumeLink('confirmed')); ?>" class="stat-card stat-card-link stat-card-success">
                             <div class="stat-icon"><i class="bi bi-person-check-fill"></i></div>
                             <div>
@@ -479,8 +489,11 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                 <div class="stat-number"><?php echo $totalAttended; ?></div>
                             </div>
                         </a>
+                        <a href="<?php echo htmlspecialchars($resumeExportLink('confirmed')); ?>" class="stat-card-export" title="Export CSV">
+                            <i class="bi bi-download"></i>
+                        </a>
                     </div>
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md-3 stat-card-wrap">
                         <a href="<?php echo htmlspecialchars($resumeLink('not_confirmed')); ?>" class="stat-card stat-card-link stat-card-danger">
                             <div class="stat-icon"><i class="bi bi-person-x-fill"></i></div>
                             <div>
@@ -488,14 +501,20 @@ $quizRetrySuccess = isset($_GET['quiz_retry']) && $_GET['quiz_retry'] === '1';
                                 <div class="stat-number"><?php echo $totalNotAttended; ?></div>
                             </div>
                         </a>
+                        <a href="<?php echo htmlspecialchars($resumeExportLink('not_confirmed')); ?>" class="stat-card-export" title="Export CSV">
+                            <i class="bi bi-download"></i>
+                        </a>
                     </div>
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md-3 stat-card-wrap">
                         <a href="<?php echo htmlspecialchars($resumeLink()); ?>" class="stat-card stat-card-link stat-card-warning">
                             <div class="stat-icon"><i class="bi bi-percent"></i></div>
                             <div>
                                 <div class="stat-label">Persentase Kehadiran</div>
                                 <div class="stat-number"><?php echo $attendancePercentage; ?>%</div>
                             </div>
+                        </a>
+                        <a href="<?php echo htmlspecialchars($resumeExportLink()); ?>" class="stat-card-export" title="Export CSV">
+                            <i class="bi bi-download"></i>
                         </a>
                     </div>
                 </div>

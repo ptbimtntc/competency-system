@@ -1204,6 +1204,33 @@ body {
     color: inherit;
 }
 
+.stat-card-wrap {
+    position: relative;
+}
+
+.stat-card-export {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 2;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, .9);
+    border: 1px solid #e0e5eb;
+    color: #123f7d;
+    font-size: 12px;
+    text-decoration: none;
+}
+
+.stat-card-export:hover {
+    background: #123f7d;
+    color: #fff;
+}
+
 .stat-icon {
     width: 34px;
     height: 34px;

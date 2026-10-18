@@ -161,6 +161,10 @@ $pageTitle = $pageTitles[$attendanceFilter];
                         <p>Daftar anggota tim yang di-assign jadwal training, beserta status kehadirannya</p>
                     </div>
                     <div class="d-flex gap-2">
+                        <a href="team_training_resume_export.php?<?php echo htmlspecialchars(http_build_query($paginationBaseParams)); ?>"
+                            class="btn btn-outline-secondary">
+                            <i class="bi bi-download"></i> Export CSV
+                        </a>
                         <a href="dashboard.php" class="btn btn-outline-secondary">&larr; Back to Dashboard</a>
                     </div>
                 </div>
