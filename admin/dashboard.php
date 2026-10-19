@@ -230,10 +230,10 @@ $quizPg = paginate($quizFilteredTotal, 15);
 
 /* Urutan: nilai tertinggi lebih dulu (berlaku lintas quiz & input manual --
    nilai 100 input manual tetap di atas nilai 90 quiz). Hanya ketika nilainya
-   sama, baris dengan quiz_submitted_at paling lama (tanggal/jam submit lebih
-   awal) didahulukan dari yang lebih baru atau input manual (quiz_submitted_at
-   NULL dianggap paling baru). Jika masih sama, diurutkan berdasarkan nama
-   karyawan secara abjad. */
+   sama, baris dengan tanggal/jam yang lebih lama (kolom "Tanggal" di tabel --
+   quiz_submitted_at untuk quiz, atau training_date/updated_at untuk input
+   manual) didahulukan dari yang lebih baru. Jika masih sama, diurutkan
+   berdasarkan nama karyawan secara abjad. */
 $queryQuizScores = "
     SELECT
         ec.id,
@@ -250,7 +250,7 @@ $queryQuizScores = "
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
     WHERE {$quizWhereSql}
-    ORDER BY ec.score DESC, (ec.quiz_submitted_at IS NULL) ASC, ec.quiz_submitted_at ASC, e.name ASC
+    ORDER BY ec.score DESC, COALESCE(ec.quiz_submitted_at, ec.training_date, ec.updated_at) ASC, e.name ASC
     LIMIT ? OFFSET ?
 ";
 $quizDataParams = $quizParams;

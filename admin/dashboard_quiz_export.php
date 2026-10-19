@@ -70,7 +70,7 @@ $query = "
     INNER JOIN employees e ON e.id = ec.employee_id
     INNER JOIN competencies c ON c.id = ec.competency_id
     WHERE {$quizWhereSql}
-    ORDER BY ec.score DESC, (ec.quiz_submitted_at IS NULL) ASC, ec.quiz_submitted_at ASC, e.name ASC
+    ORDER BY ec.score DESC, COALESCE(ec.quiz_submitted_at, ec.training_date, ec.updated_at) ASC, e.name ASC
 ";
 $stmt = mysqli_prepare($conn, $query);
 if (!empty($quizParams)) {
