@@ -115,6 +115,7 @@ if ($sessionSelected) {
             employee_id,
             scheduled_training_date,
             attendance_confirmed,
+            training_date,
             status
         FROM employee_competencies
         WHERE competency_id = ? AND is_active = 1"
@@ -380,6 +381,7 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                                         $row = $assignedRows[(int) $employee['id']];
                                         $isThisSession = $row['scheduled_training_date'] === $scheduledDate;
                                         $isChecked = $isThisSession && (int) $row['attendance_confirmed'] === 1;
+                                        $hasAttended = !empty($row['training_date']);
                                         ?>
                                         <tr class="employee-row"
                                             data-search="<?php echo htmlspecialchars(strtolower(
@@ -388,7 +390,8 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                                                 ($employee['supervisor'] ?? '')
                                             )); ?>"
                                             data-team="<?php echo htmlspecialchars($employee['team'] ?? ''); ?>"
-                                            data-supervisor="<?php echo htmlspecialchars($employee['supervisor'] ?? ''); ?>">
+                                            data-supervisor="<?php echo htmlspecialchars($employee['supervisor'] ?? ''); ?>"
+                                            data-attended="<?php echo $hasAttended ? '1' : '0'; ?>">
                                             <td>
                                                 <input type="hidden" name="visible_employees[]" value="<?php echo $employee['id']; ?>">
                                                 <input type="checkbox" class="form-check-input attendance-checkbox"
@@ -469,7 +472,8 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                                                 ($employee['supervisor'] ?? '')
                                             )); ?>"
                                             data-team="<?php echo htmlspecialchars($employee['team'] ?? ''); ?>"
-                                            data-supervisor="<?php echo htmlspecialchars($employee['supervisor'] ?? ''); ?>">
+                                            data-supervisor="<?php echo htmlspecialchars($employee['supervisor'] ?? ''); ?>"
+                                            data-attended="0">
                                             <td>
                                                 <input type="hidden" name="visible_employees[]" value="<?php echo $employee['id']; ?>">
                                                 <input type="checkbox" class="form-check-input attendance-checkbox"
@@ -526,13 +530,11 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                 visibleCheckboxes().forEach(function (cb) {
                     cb.checked = true;
                 });
-                applyFilter();
             });
             document.getElementById('clearAllBtn')?.addEventListener('click', function () {
                 visibleCheckboxes().forEach(function (cb) {
                     cb.checked = false;
                 });
-                applyFilter();
             });
 
             /*
@@ -557,8 +559,7 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                     var matchesSearch = keyword === '' || row.dataset.search.indexOf(keyword) !== -1;
                     var matchesTeam = team === '' || row.dataset.team === team;
                     var matchesSupervisor = supervisor === '' || row.dataset.supervisor === supervisor;
-                    var checkbox = row.querySelector('.attendance-checkbox');
-                    var isAttended = !!(checkbox && checkbox.checked);
+                    var isAttended = row.dataset.attended === '1';
                     var matchesAttendance = attendance === ''
                         || (attendance === 'yes' && isAttended)
                         || (attendance === 'no' && !isAttended);
@@ -570,9 +571,6 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
             teamSelect?.addEventListener('change', applyFilter);
             supervisorSelect?.addEventListener('change', applyFilter);
             attendanceSelect?.addEventListener('change', applyFilter);
-            document.querySelectorAll('.attendance-checkbox').forEach(function (cb) {
-                cb.addEventListener('change', applyFilter);
-            });
             applyFilter();
         })();
     </script>
