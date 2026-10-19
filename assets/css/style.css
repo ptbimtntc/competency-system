@@ -1231,6 +1231,53 @@ body {
     color: #fff;
 }
 
+/* SESSION CHIP (shortcut sesi training terjadwal terbaru) */
+.session-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 220px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid #e0e5eb;
+    background: #f7f9fc;
+    color: #3a4454;
+    font-size: 12px;
+    line-height: 1.6;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.session-chip:hover {
+    background: #e8f2ff;
+    color: #123f7d;
+}
+
+.session-chip-active {
+    background: #123f7d;
+    border-color: #123f7d;
+    color: #fff;
+}
+
+.session-chip-active:hover {
+    background: #0e3266;
+    color: #fff;
+}
+
+.session-chip-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.session-chip-date {
+    opacity: .8;
+}
+
+.session-chip-count {
+    font-weight: 600;
+}
+
 .stat-icon {
     width: 34px;
     height: 34px;

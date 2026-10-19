@@ -35,7 +35,7 @@ $sessionResult = mysqli_query(
         AND ec.is_active = 1
     GROUP BY ec.competency_id, ec.scheduled_training_date
     ORDER BY ec.scheduled_training_date DESC
-    LIMIT 30"
+    LIMIT 5"
 );
 $sessions = [];
 while ($row = mysqli_fetch_assoc($sessionResult)) {
@@ -220,26 +220,25 @@ $success = isset($_GET['success']) && $_GET['success'] === '1';
                 </div>
             </form>
             <?php if (count($sessions) > 0): ?>
-                <hr>
-                <div class="mb-2 text-muted" style="font-size:13px;">
-                    Sesi terjadwal terbaru:
+                <hr class="my-2">
+                <div class="mb-1 text-muted" style="font-size:12px;">
+                    5 sesi terjadwal terbaru:
                 </div>
-                <div class="d-flex flex-wrap gap-2">
+                <div class="d-flex flex-wrap gap-1">
                     <?php foreach ($sessions as $s): ?>
                         <?php
                         $isCurrent = $sessionSelected
                             && (int) $s['competency_id'] === $competencyId
                             && $s['scheduled_training_date'] === $scheduledDate;
+                        $chipTitle = $s['competency_name'] . ' — ' . date('d M Y', strtotime($s['scheduled_training_date']));
                         ?>
                         <a href="attendance.php?competency_id=<?php echo $s['competency_id']; ?>&scheduled_date=<?php
                             echo $s['scheduled_training_date'];
-                            ?>" class="btn btn-sm <?php echo $isCurrent ? 'btn-primary' : 'btn-outline-secondary'; ?>">
-                            <?php echo htmlspecialchars($s['competency_name']); ?>
-                            &mdash;
-                            <?php echo date('d M Y', strtotime($s['scheduled_training_date'])); ?>
-                            <span class="badge text-bg-light text-dark ms-1">
-                                <?php echo (int) $s['total_confirmed']; ?>/<?php echo (int) $s['total_scheduled']; ?> hadir
-                            </span>
+                            ?>" class="session-chip <?php echo $isCurrent ? 'session-chip-active' : ''; ?>"
+                            title="<?php echo htmlspecialchars($chipTitle); ?>">
+                            <span class="session-chip-text"><?php echo htmlspecialchars($s['competency_name']); ?></span>
+                            <span class="session-chip-date"><?php echo date('d/m/y', strtotime($s['scheduled_training_date'])); ?></span>
+                            <span class="session-chip-count"><?php echo (int) $s['total_confirmed']; ?>/<?php echo (int) $s['total_scheduled']; ?></span>
                         </a>
                     <?php endforeach; ?>
                 </div>
