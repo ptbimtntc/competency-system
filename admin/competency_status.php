@@ -228,6 +228,10 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                         Import Attendance CSV
                     </a>
                 <?php endif; ?>
+                <a href="competency_status_export.php?<?php echo htmlspecialchars(buildStatusFilterQuery($status)); ?>"
+                    class="btn btn-outline-secondary">
+                    <i class="bi bi-download"></i> Export CSV
+                </a>
                 <a href="dashboard.php" class="btn btn-outline-secondary">
                     &larr; Back to Dashboard
                 </a>

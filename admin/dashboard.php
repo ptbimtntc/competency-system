@@ -372,6 +372,13 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
     }
     return 'competency_status.php?' . http_build_query($params);
 };
+$statusExportLink = function (string $status, array $extra = []) use ($filterCompetencyId): string {
+    $params = array_merge(['status' => $status], $extra);
+    if ($filterCompetencyId > 0) {
+        $params['competency_id'] = $filterCompetencyId;
+    }
+    return 'competency_status_export.php?' . http_build_query($params);
+};
 ?>
 <div class="row g-3">
     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
@@ -392,7 +399,7 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
             </div>
         </a>
     </div>
-    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2 stat-card-wrap">
         <a href="<?php echo htmlspecialchars($statusLink('VALID')); ?>" class="stat-card stat-card-link stat-card-success">
             <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
             <div>
@@ -400,8 +407,11 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                 <div class="stat-number"><?php echo $totalValid; ?></div>
             </div>
         </a>
+        <a href="<?php echo htmlspecialchars($statusExportLink('VALID')); ?>" class="stat-card-export" title="Export CSV">
+            <i class="bi bi-download"></i>
+        </a>
     </div>
-    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2 stat-card-wrap">
         <a href="<?php echo htmlspecialchars($statusLink('EXPIRED')); ?>" class="stat-card stat-card-link stat-card-danger">
             <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
             <div>
@@ -409,8 +419,11 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                 <div class="stat-number"><?php echo $totalExpired; ?></div>
             </div>
         </a>
+        <a href="<?php echo htmlspecialchars($statusExportLink('EXPIRED')); ?>" class="stat-card-export" title="Export CSV">
+            <i class="bi bi-download"></i>
+        </a>
     </div>
-    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2 stat-card-wrap">
         <a href="<?php echo htmlspecialchars($statusLink('ASSIGNED')); ?>" class="stat-card stat-card-link stat-card-warning">
             <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
             <div>
@@ -418,8 +431,11 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                 <div class="stat-number"><?php echo $totalAssigned; ?></div>
             </div>
         </a>
+        <a href="<?php echo htmlspecialchars($statusExportLink('ASSIGNED')); ?>" class="stat-card-export" title="Export CSV">
+            <i class="bi bi-download"></i>
+        </a>
     </div>
-    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2 stat-card-wrap">
         <a href="<?php echo htmlspecialchars($statusLink('ASSIGNED', ['attendance' => 'confirmed'])); ?>" class="stat-card stat-card-link stat-card-info">
             <div class="stat-icon"><i class="bi bi-pencil-square"></i></div>
             <div>
@@ -427,14 +443,20 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                 <div class="stat-number"><?php echo $totalWaitingQuiz; ?></div>
             </div>
         </a>
+        <a href="<?php echo htmlspecialchars($statusExportLink('ASSIGNED', ['attendance' => 'confirmed'])); ?>" class="stat-card-export" title="Export CSV">
+            <i class="bi bi-download"></i>
+        </a>
     </div>
-    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2 stat-card-wrap">
         <a href="<?php echo htmlspecialchars($statusLink('FAILED')); ?>" class="stat-card stat-card-link stat-card-danger">
             <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
             <div>
                 <div class="stat-label">Failed</div>
                 <div class="stat-number"><?php echo $totalFailed; ?></div>
             </div>
+        </a>
+        <a href="<?php echo htmlspecialchars($statusExportLink('FAILED')); ?>" class="stat-card-export" title="Export CSV">
+            <i class="bi bi-download"></i>
         </a>
     </div>
 </div>
@@ -574,7 +596,11 @@ $statusLink = function (string $status, array $extra = []) use ($filterCompetenc
                 <strong><?php echo $quizAverageScore !== null ? $quizAverageScore : '-'; ?></strong>
             </p>
         </div>
-        <div>
+        <div class="d-flex gap-2 align-items-end flex-wrap">
+            <a href="dashboard_quiz_export.php?<?php echo htmlspecialchars(http_build_query($quizPaginationBaseParams)); ?>"
+                class="btn btn-outline-secondary">
+                <i class="bi bi-download"></i> Export CSV
+            </a>
             <form method="GET" class="d-flex gap-2">
                 <?php if ($filterCompetencyId > 0): ?>
                     <input type="hidden" name="competency_id" value="<?php echo $filterCompetencyId; ?>">
