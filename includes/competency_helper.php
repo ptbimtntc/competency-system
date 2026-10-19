@@ -356,18 +356,32 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
 */
 function sweepExpiredQuizRetries(mysqli $conn): void
 {
-    $nowUtc = (new DateTime())->format('Y-m-d H:i:s');
-    $stmt = mysqli_prepare(
-        $conn,
-        "UPDATE employee_competencies
-        SET status = 'FAILED', quiz_retry_until = NULL
-        WHERE status = 'ASSIGNED'
-            AND quiz_submitted_at IS NULL
-            AND quiz_retry_until IS NOT NULL
-            AND quiz_retry_until < ?"
-    );
-    mysqli_stmt_bind_param($stmt, "s", $nowUtc);
-    mysqli_stmt_execute($stmt);
+    /*
+    | Dibungkus try/catch -- UPDATE ini tidak punya index yang pas untuk
+    | WHERE clause-nya, jadi bisa lock wait timeout (error mysqli) kalau
+    | baris yang sama sedang dikunci transaksi lain (misalnya FOR UPDATE
+    | di quiz_submit.php saat karyawan submit kuis). Fungsi ini dipanggil
+    | di SETIAP request dari config/database.php, jadi error yang tidak
+    | ditangani di sini bikin seluruh situs putih/500, bukan cuma halaman
+    | yang kebetulan bertabrakan lock-nya. Kegagalan sweep di sini aman
+    | diabaikan -- paling lambat tersapu di request berikutnya.
+    */
+    try {
+        $nowUtc = (new DateTime())->format('Y-m-d H:i:s');
+        $stmt = mysqli_prepare(
+            $conn,
+            "UPDATE employee_competencies
+            SET status = 'FAILED', quiz_retry_until = NULL
+            WHERE status = 'ASSIGNED'
+                AND quiz_submitted_at IS NULL
+                AND quiz_retry_until IS NOT NULL
+                AND quiz_retry_until < ?"
+        );
+        mysqli_stmt_bind_param($stmt, "s", $nowUtc);
+        mysqli_stmt_execute($stmt);
+    } catch (\Throwable $e) {
+        error_log("sweepExpiredQuizRetries gagal: " . $e->getMessage());
+    }
 }
 /*
 |--------------------------------------------------------------------------

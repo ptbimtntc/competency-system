@@ -210,8 +210,15 @@ try {
     mysqli_commit($conn);
     header("Location: employee.php?id=" . $id . "&quiz_success=1&score=" . $score . "&passed=" . ($status === 'FAILED' ? '0' : '1'));
     exit;
-} catch (Exception $e) {
+} catch (\Throwable $e) {
+    /*
+    | \Throwable (bukan cuma Exception) supaya TypeError/Error teknis juga
+    | tertangkap -- sebelumnya error semacam itu lolos dari catch dan bikin
+    | halaman putih/500 alih-alih redirect balik ke quiz.php dengan pesan
+    | gagal.
+    */
     mysqli_rollback($conn);
+    error_log("quiz_submit.php gagal (id={$id}): " . $e->getMessage());
     header("Location: quiz.php?id=" . $id . "&error=1");
     exit;
 }
