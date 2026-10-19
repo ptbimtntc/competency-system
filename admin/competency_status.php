@@ -118,6 +118,7 @@ $query = "
         e.department,
         e.position,
         e.team,
+        e.supervisor,
         ec.score,
         c.name AS competency_name,
         c.passing_score
@@ -125,7 +126,7 @@ $query = "
     INNER JOIN employees e ON ec.employee_id = e.id
     INNER JOIN competencies c ON ec.competency_id = c.id
     WHERE " . implode(' AND ', $conditions) . "
-    ORDER BY ec.expiry_date ASC, e.name ASC
+    ORDER BY e.supervisor ASC, e.name ASC
     LIMIT ? OFFSET ?
 ";
 $dataParams = $params;
@@ -334,6 +335,9 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                 <table class="table table-hover align-middle mb-0">
                     <thead>
                         <tr>
+                            <th>
+                                Atasan
+                            </th>
                             <?php if ($status === 'ASSIGNED'): ?>
                                 <th width="40">
                                     <input type="checkbox" class="form-check-input" id="selectAllAssigned">
@@ -379,6 +383,9 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                         <?php if (mysqli_num_rows($result) > 0): ?>
                             <?php while ($row = mysqli_fetch_assoc($result)): ?>
                                 <tr>
+                                    <td>
+                                        <?php echo htmlspecialchars($row['supervisor'] ?? '-'); ?>
+                                    </td>
                                     <?php if ($status === 'ASSIGNED'): ?>
                                         <td>
                                             <?php if ((int) $row['attendance_confirmed'] === 1): ?>
@@ -467,7 +474,7 @@ function buildStatusFilterQuery(string $status, array $overrides = []): string
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="<?php echo ($status === 'ASSIGNED' || $canResetFailed) ? 11 : 10; ?>" class="text-center py-5">
+                                <td colspan="<?php echo ($status === 'ASSIGNED' || $canResetFailed) ? 12 : 11; ?>" class="text-center py-5">
                                     Tidak ada data competency dengan status ini.
                                 </td>
                             </tr>
