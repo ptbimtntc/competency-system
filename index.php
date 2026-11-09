@@ -59,7 +59,7 @@ $competencies = mysqli_stmt_get_result($stmtCompetency);
     <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- CSS kita sendiri -->
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/style.css?v=<?php echo filemtime(__DIR__ . '/assets/css/style.css'); ?>">
 </head>
 <body>
     <div class="container py-4">
@@ -128,46 +128,11 @@ $competencies = mysqli_stmt_get_result($stmtCompetency);
                                 ?>
                             </div>
                             <div class="competency-info">
-                                <div>
-                                    Training Date
-                                    <strong>
-                                        <?php
-                                        echo empty($competency['training_date'])
-                                            ? '-'
-                                            : date('d M Y', strtotime($competency['training_date']));
-                                        ?>
-                                    </strong>
-                                </div>
-                                <div>
-                                    Expiry Date
-                                    <strong>
-                                        <?php
-                                        echo empty($competency['expiry_date'])
-                                            ? 'No Expiry'
-                                            : date('d M Y', strtotime($competency['expiry_date']));
-                                        ?>
-                                    </strong>
-                                </div>
-                                <div>
-                                    Trainer
-                                    <strong>
-                                        <?php
-                                        echo htmlspecialchars(
-                                            $competency['trainer'] ?? '-'
-                                        );
-                                        ?>
-                                    </strong>
-                                </div>
-                                <div>
-                                    Certificate No.
-                                    <strong>
-                                        <?php
-                                        echo htmlspecialchars(
-                                            $competency['certificate_number'] ?? '-'
-                                        );
-                                        ?>
-                                    </strong>
-                                </div>
+                                Expiry Date: <strong><?php
+                                    echo empty($competency['expiry_date'])
+                                        ? 'No Expiry'
+                                        : date('d M Y', strtotime($competency['expiry_date']));
+                                ?></strong>
                             </div>
                         </div>
                         <div class="competency-status <?php echo competencyStatusColorClass($competency['status']); ?>">
