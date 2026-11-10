@@ -15,6 +15,10 @@ if ($id <= 0) {
 
 mysqli_begin_transaction($conn);
 try {
+    /*
+    | Kunci HANYA baris employee_competencies milik user ini (bukan JOIN ke competencies),
+    | supaya user lain yang mengerjakan kuis untuk kompetensi yang sama TIDAK ikut terkunci.
+    */
     $lockStmt = mysqli_prepare(
         $conn,
         "SELECT
@@ -27,11 +31,8 @@ try {
             ec.quiz_submitted_at,
             ec.quiz_retry_until,
             ec.score,
-            ec.status,
-            c.validity_months,
-            c.passing_score
+            ec.status
         FROM employee_competencies ec
-        INNER JOIN competencies c ON c.id = ec.competency_id
         WHERE ec.id = ?
         FOR UPDATE"
     );
@@ -42,6 +43,17 @@ try {
     if (!$ec) {
         throw new Exception("Data kompetensi tidak ditemukan.");
     }
+
+    /* Ambil metadata kompetensi tanpa lock FOR UPDATE */
+    $compStmt = mysqli_prepare(
+        $conn,
+        "SELECT validity_months, passing_score FROM competencies WHERE id = ? LIMIT 1"
+    );
+    mysqli_stmt_bind_param($compStmt, "i", $ec['competency_id']);
+    mysqli_stmt_execute($compStmt);
+    $compData = mysqli_fetch_assoc(mysqli_stmt_get_result($compStmt)) ?: [];
+    $ec['validity_months'] = $compData['validity_months'] ?? null;
+    $ec['passing_score'] = $compData['passing_score'] ?? null;
 
     $eligibility = getQuizEligibility($conn, $ec);
     if (!$eligibility['eligible']) {
@@ -64,7 +76,7 @@ try {
 
     /*
     |--------------------------------------------------------------------------
-    | Ambil soal + pilihan jawaban benar untuk kompetensi ini
+    | Ambil soal + SEMUA pilihan jawaban sekaligus (Single Query, No N+1)
     |--------------------------------------------------------------------------
     */
     $questionStmt = mysqli_prepare(
@@ -82,6 +94,21 @@ try {
         throw new Exception("Soal kuis tidak ditemukan.");
     }
 
+    $choiceStmt = mysqli_prepare(
+        $conn,
+        "SELECT c.id, c.question_id, c.is_correct, c.points
+        FROM competency_question_choices c
+        INNER JOIN competency_questions q ON q.id = c.question_id
+        WHERE q.competency_id = ?"
+    );
+    mysqli_stmt_bind_param($choiceStmt, "i", $ec['competency_id']);
+    mysqli_stmt_execute($choiceStmt);
+    $choiceResult = mysqli_stmt_get_result($choiceStmt);
+    $choicesByQuestion = [];
+    while ($choice = mysqli_fetch_assoc($choiceResult)) {
+        $choicesByQuestion[(int) $choice['question_id']][] = $choice;
+    }
+
     $submittedAnswers = $_POST['answers'] ?? [];
     $totalEarned = 0;
     $totalPossible = 0;
@@ -89,17 +116,12 @@ try {
 
     foreach ($questions as $question) {
         $questionId = (int) $question['id'];
-        $choiceStmt = mysqli_prepare(
-            $conn,
-            "SELECT id, is_correct, points FROM competency_question_choices WHERE question_id = ?"
-        );
-        mysqli_stmt_bind_param($choiceStmt, "i", $questionId);
-        mysqli_stmt_execute($choiceStmt);
-        $choiceResult = mysqli_stmt_get_result($choiceStmt);
+        $questionChoices = $choicesByQuestion[$questionId] ?? [];
         $correctChoiceIds = [];
         $questionMaxPoints = 0;
         $validChoiceIds = [];
-        while ($choice = mysqli_fetch_assoc($choiceResult)) {
+
+        foreach ($questionChoices as $choice) {
             $validChoiceIds[] = (int) $choice['id'];
             if ((int) $choice['is_correct'] === 1) {
                 $correctChoiceIds[] = (int) $choice['id'];
@@ -136,30 +158,30 @@ try {
 
     /*
     |--------------------------------------------------------------------------
-    | Simpan jawaban (audit trail)
+    | Simpan jawaban (audit trail) - Multi-row bulk insert
     |--------------------------------------------------------------------------
     */
     if (count($answerInsertRows) > 0) {
+        $placeholders = implode(', ', array_fill(0, count($answerInsertRows), '(?, ?, ?)'));
+        $types = str_repeat('iii', count($answerInsertRows));
+        $flatValues = [];
+        foreach ($answerInsertRows as $row) {
+            $flatValues[] = $row[0];
+            $flatValues[] = $row[1];
+            $flatValues[] = $row[2];
+        }
         $insertAnswerStmt = mysqli_prepare(
             $conn,
-            "INSERT INTO employee_quiz_answers (employee_competency_id, question_id, choice_id) VALUES (?, ?, ?)"
+            "INSERT INTO employee_quiz_answers (employee_competency_id, question_id, choice_id) VALUES " . $placeholders
         );
-        foreach ($answerInsertRows as $row) {
-            mysqli_stmt_bind_param($insertAnswerStmt, "iii", $row[0], $row[1], $row[2]);
-            mysqli_stmt_execute($insertAnswerStmt);
-        }
+        mysqli_stmt_bind_param($insertAnswerStmt, $types, ...$flatValues);
+        mysqli_stmt_execute($insertAnswerStmt);
     }
 
     /*
     |--------------------------------------------------------------------------
     | Hitung training_date, expiry_date, certificate_number, status
     |--------------------------------------------------------------------------
-    */
-    /*
-    | training_date normalnya sudah diisi otomatis saat attendance
-    | dikonfirmasi (tanggal admin mencentang hadir). Fallback ke
-    | scheduled_training_date untuk jaga-jaga kalau karena alasan apa pun
-    | kolomnya masih kosong saat quiz ini disubmit.
     */
     $trainingDate = $ec['training_date'] ?: $ec['scheduled_training_date'];
     $validityMonths = !empty($ec['validity_months']) ? (int) $ec['validity_months'] : null;
@@ -169,36 +191,68 @@ try {
         $expiryDateTime->modify('+' . $validityMonths . ' months');
         $expiryDate = $expiryDateTime->format('Y-m-d');
     }
-    $certificateNumber = $ec['certificate_number'];
-    if (empty($certificateNumber)) {
-        $certificateNumber = generateCertificateNumber($conn, (int) $ec['competency_id'], $trainingDate);
-    }
+
     $passingScore = $ec['passing_score'] !== null ? (int) $ec['passing_score'] : null;
     $status = calculateCompetencyStatus($trainingDate, $expiryDate);
     $status = applyPassingScoreGate($status, $score, $passingScore);
 
-    $updateStmt = mysqli_prepare(
-        $conn,
-        "UPDATE employee_competencies
-        SET training_date = ?,
-            expiry_date = ?,
-            certificate_number = ?,
-            score = ?,
-            status = ?,
-            quiz_submitted_at = NOW()
-        WHERE id = ?"
-    );
-    mysqli_stmt_bind_param(
-        $updateStmt,
-        "sssisi",
-        $trainingDate,
-        $expiryDate,
-        $certificateNumber,
-        $score,
-        $status,
-        $id
-    );
-    mysqli_stmt_execute($updateStmt);
+    $certificateNumber = $ec['certificate_number'];
+
+    /*
+    | Simpan status & nomor sertifikat dengan retry otomatis jika terjadi tabrakan nomor urut
+    | (error 1062 uq_certificate_number) saat banyak peserta submit bersamaan.
+    */
+    $maxSaveRetries = 5;
+    $saved = false;
+
+    for ($attempt = 1; $attempt <= $maxSaveRetries; $attempt++) {
+        if ($status !== 'FAILED') {
+            if (empty($certificateNumber)) {
+                $certificateNumber = generateCertificateNumber($conn, (int) $ec['competency_id'], $trainingDate);
+            }
+        } else {
+            $certificateNumber = null;
+        }
+
+        $updateStmt = mysqli_prepare(
+            $conn,
+            "UPDATE employee_competencies
+            SET training_date = ?,
+                expiry_date = ?,
+                certificate_number = ?,
+                score = ?,
+                status = ?,
+                quiz_submitted_at = NOW()
+            WHERE id = ?"
+        );
+        mysqli_stmt_bind_param(
+            $updateStmt,
+            "sssisi",
+            $trainingDate,
+            $expiryDate,
+            $certificateNumber,
+            $score,
+            $status,
+            $id
+        );
+
+        try {
+            mysqli_stmt_execute($updateStmt);
+            $saved = true;
+            break;
+        } catch (\mysqli_sql_exception $e) {
+            if ($e->getCode() === 1062 && $status !== 'FAILED') {
+                $certificateNumber = null; // Reset agar dibuatkan nomor sequence berikutnya
+                usleep(50000); // Tunggu 50ms lalu coba lagi
+                continue;
+            }
+            throw $e;
+        }
+    }
+
+    if (!$saved) {
+        throw new Exception("Gagal menyimpan hasil kuis karena antrean nomor sertifikat.");
+    }
 
     /*
     |--------------------------------------------------------------------------

@@ -357,16 +357,50 @@ function resetEmployeeCompetencyQuiz(mysqli $conn, int $employeeCompetencyId, in
 function sweepExpiredQuizRetries(mysqli $conn): void
 {
     /*
-    | Dibungkus try/catch -- UPDATE ini tidak punya index yang pas untuk
-    | WHERE clause-nya, jadi bisa lock wait timeout (error mysqli) kalau
-    | baris yang sama sedang dikunci transaksi lain (misalnya FOR UPDATE
-    | di quiz_submit.php saat karyawan submit kuis). Fungsi ini dipanggil
-    | di SETIAP request dari config/database.php, jadi error yang tidak
-    | ditangani di sini bikin seluruh situs putih/500, bukan cuma halaman
-    | yang kebetulan bertabrakan lock-nya. Kegagalan sweep di sini aman
-    | diabaikan -- paling lambat tersapu di request berikutnya.
+    | Optimasi Concurrency:
+    | 1. Jangan jalankan sweep pada request POST (misal saat submit kuis), agar
+    |    tidak menimbulkan perebutan kunci baris (lock contention) dengan quiz_submit.php.
+    | 2. Throttle: Jangan jalankan query UPDATE di setiap request HTTP. Cukup
+    |    dijalankan paling sering 1 kali per 3 menit (180 detik) menggunakan file lock non-blocking.
+    |    Dengan cara ini, jika 50+ user mengakses web app bersamaan, hanya 1 request
+    |    yang mengeksekusi UPDATE, sementara request lainnya langsung lewat tanpa menyentuh DB.
     */
+    if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        return;
+    }
+
+    $throttleSeconds = 180; // 3 menit
+    $lockFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'bekaert_quiz_sweep_throttle.txt';
+    $now = time();
+
+    if (file_exists($lockFile)) {
+        $lastRun = (int) @file_get_contents($lockFile);
+        if (($now - $lastRun) < $throttleSeconds) {
+            return;
+        }
+    }
+
+    $fp = @fopen($lockFile, 'c+');
+    if (!$fp) {
+        return;
+    }
+
+    if (!flock($fp, LOCK_EX | LOCK_NB)) {
+        fclose($fp);
+        return;
+    }
+
     try {
+        $content = stream_get_contents($fp);
+        if ($content && ($now - (int) $content) < $throttleSeconds) {
+            return;
+        }
+
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, (string) $now);
+        fflush($fp);
+
         $nowUtc = (new DateTime())->format('Y-m-d H:i:s');
         $stmt = mysqli_prepare(
             $conn,
@@ -377,10 +411,16 @@ function sweepExpiredQuizRetries(mysqli $conn): void
                 AND quiz_retry_until IS NOT NULL
                 AND quiz_retry_until < ?"
         );
-        mysqli_stmt_bind_param($stmt, "s", $nowUtc);
-        mysqli_stmt_execute($stmt);
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, "s", $nowUtc);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_close($stmt);
+        }
     } catch (\Throwable $e) {
         error_log("sweepExpiredQuizRetries gagal: " . $e->getMessage());
+    } finally {
+        flock($fp, LOCK_UN);
+        fclose($fp);
     }
 }
 /*

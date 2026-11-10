@@ -48,22 +48,32 @@ if ($eligibility['eligible']) {
     mysqli_stmt_bind_param($questionStmt, "i", $data['competency_id']);
     mysqli_stmt_execute($questionStmt);
     $questionResult = mysqli_stmt_get_result($questionStmt);
+    $questionsById = [];
     while ($q = mysqli_fetch_assoc($questionResult)) {
+        $q['choices'] = [];
+        $questionsById[(int) $q['id']] = $q;
+    }
+
+    if (!empty($questionsById)) {
         $choiceStmt = mysqli_prepare(
             $conn,
-            "SELECT id, option_label, choice_text FROM competency_question_choices
-            WHERE question_id = ? ORDER BY option_label ASC"
+            "SELECT c.id, c.question_id, c.option_label, c.choice_text
+            FROM competency_question_choices c
+            INNER JOIN competency_questions q ON q.id = c.question_id
+            WHERE q.competency_id = ?
+            ORDER BY c.question_id ASC, c.option_label ASC"
         );
-        mysqli_stmt_bind_param($choiceStmt, "i", $q['id']);
+        mysqli_stmt_bind_param($choiceStmt, "i", $data['competency_id']);
         mysqli_stmt_execute($choiceStmt);
         $choiceResult = mysqli_stmt_get_result($choiceStmt);
-        $choices = [];
         while ($c = mysqli_fetch_assoc($choiceResult)) {
-            $choices[] = $c;
+            $qId = (int) $c['question_id'];
+            if (isset($questionsById[$qId])) {
+                $questionsById[$qId]['choices'][] = $c;
+            }
         }
-        $q['choices'] = $choices;
-        $questions[] = $q;
     }
+    $questions = array_values($questionsById);
 }
 $submitError = isset($_GET['error']) && $_GET['error'] === '1';
 ?>
